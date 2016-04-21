@@ -9,6 +9,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <exception>
+#include <atomic>
+#include <algorithm>
 
 #include "pp_util.hxx"
 #include "basic_types.hxx"
@@ -33,12 +35,12 @@
 #include "state_machine.hxx"
 #include "rpc_cli.hxx"
 #include "rpc_cli_factory.hxx"
+#include "delayed_task.hxx"
+#include "timer_task.hxx"
+#include "delayed_task_scheduler.hxx"
 #include "context.hxx"
 #include "rpc_exception.hxx"
 #include "snapshot_sync_ctx.hxx"
 #include "snapshot_sync_req.hxx"
-#include "delayed_task.hxx"
-#include "timer_task.hxx"
-#include "delayed_task_scheduler.hxx"
 #include "peer.hxx"
 #endif // _CORNERSTONE_HXX_

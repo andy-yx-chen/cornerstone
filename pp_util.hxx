@@ -3,15 +3,15 @@
 
 #define __override__ override
 #define __nocopy__(clazz) \
-	private:\
-	clazz(const clazz&) = delete;\
-	clazz& operator=(const clazz&) = delete;\
+    private:\
+    clazz(const clazz&) = delete;\
+    clazz& operator=(const clazz&) = delete;\
 
 #define nilptr nullptr
 #define __interface_body__(clazz) \
-	public:\
-	clazz(){} \
+    public:\
+    clazz(){} \
     virtual ~##clazz() {} \
-	__nocopy__(clazz)
+    __nocopy__(clazz)
 
 #endif //_PP_UTIL_HXX_

@@ -3,8 +3,8 @@
 
 class buffer {
 public:
-	static void release(buffer* buff);
-	static buffer* alloc(const size_t size);
+    static void release(buffer* buff);
+    static buffer* alloc(const size_t size);
 };
 
 #endif //_BUFFER_HXX_
