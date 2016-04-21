@@ -3,11 +3,7 @@
 
 namespace cornerstone {
 	class state_mgr {
-	public:
-		state_mgr() {}
-		virtual ~state_mgr() {}
-
-		__nocopy__(state_mgr)
+	__interface_body__(state_mgr)
 
 	public:
 		virtual cluster_config* load_config() = 0;
@@ -16,6 +12,7 @@ namespace cornerstone {
 		virtual srv_state* read_state() = 0;
 		virtual log_store* load_log_store() = 0;
 		virtual int server_id() = 0;
+		virtual void system_exit(const int exit_code) = 0;
 	};
 }
 

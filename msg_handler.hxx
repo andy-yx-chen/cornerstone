@@ -3,11 +3,7 @@
 
 namespace cornerstone {
 	class msg_handler {
-	public:
-		msg_handler() {}
-		virtual ~msg_handler() {}
-
-		__nocopy__(msg_handler)
+	__interface_body__(msg_handler)
 
 	public:
 		virtual resp_msg* process_req(req_msg* req) = 0;

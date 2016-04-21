@@ -3,11 +3,7 @@
 
 namespace cornerstone {
 	class log_store {
-	public:
-		log_store() {}
-		virtual ~log_store() {}
-
-		__nocopy__(log_store)
+	__interface_body__(log_store)
 
 	public:
 		/**

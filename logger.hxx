@@ -3,12 +3,7 @@
 
 namespace cornerstone {
 	class logger {
-	public:
-		logger() {}
-
-		virtual ~logger() {}
-
-		__nocopy__(logger)
+	__interface_body__(logger)
 
 	public:
 		virtual void debug(const std::string& log_line) = 0;

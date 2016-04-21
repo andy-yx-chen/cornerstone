@@ -118,23 +118,42 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="async.hxx" />
     <ClInclude Include="basic_types.hxx" />
     <ClInclude Include="buffer.hxx" />
     <ClInclude Include="cluster_config.hxx" />
+    <ClInclude Include="context.hxx" />
     <ClInclude Include="cornerstone.hxx" />
+    <ClInclude Include="delayed_task.hxx" />
+    <ClInclude Include="delayed_task_scheduler.hxx" />
     <ClInclude Include="logger.hxx" />
     <ClInclude Include="log_entry.hxx" />
     <ClInclude Include="log_store.hxx" />
     <ClInclude Include="log_val_type.hxx" />
     <ClInclude Include="msg_base.hxx" />
+    <ClInclude Include="msg_handler.hxx" />
     <ClInclude Include="msg_type.hxx" />
+    <ClInclude Include="peer.hxx" />
     <ClInclude Include="pp_util.hxx" />
     <ClInclude Include="raft_params.hxx" />
     <ClInclude Include="req_msg.hxx" />
     <ClInclude Include="resp_msg.hxx" />
+    <ClInclude Include="rpc_cli.hxx" />
+    <ClInclude Include="rpc_cli_factory.hxx" />
+    <ClInclude Include="rpc_exception.hxx" />
+    <ClInclude Include="rpc_listener.hxx" />
+    <ClInclude Include="snapshot.hxx" />
+    <ClInclude Include="snapshot_sync_ctx.hxx" />
+    <ClInclude Include="snapshot_sync_req.hxx" />
     <ClInclude Include="srv_config.hxx" />
+    <ClInclude Include="srv_role.hxx" />
     <ClInclude Include="srv_state.hxx" />
+    <ClInclude Include="state_machine.hxx" />
     <ClInclude Include="state_mgr.hxx" />
+    <ClInclude Include="timer_task.hxx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="tests\test_async_result.cxx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

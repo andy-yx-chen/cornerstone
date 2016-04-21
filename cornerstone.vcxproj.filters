@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\tests">
+      <UniqueIdentifier>{4181f9ad-2d1f-4531-bddf-ba9ed5ab5b87}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="basic_types.hxx">
@@ -66,5 +69,58 @@
     <ClInclude Include="raft_params.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="async.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rpc_listener.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="msg_handler.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="state_machine.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="snapshot.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rpc_cli_factory.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rpc_cli.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="context.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="rpc_exception.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="srv_role.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="snapshot_sync_ctx.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="snapshot_sync_req.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="timer_task.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="delayed_task.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="delayed_task_scheduler.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="peer.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="tests\test_async_result.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
