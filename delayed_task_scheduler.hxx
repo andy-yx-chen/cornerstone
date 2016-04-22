@@ -6,7 +6,7 @@ namespace cornerstone {
     __interface_body__(delayed_task_scheduler)
 
     public:
-        virtual void schedule(delayed_task* task, long milliseconds);
+        virtual void schedule(delayed_task& task, long milliseconds);
     };
 }
 

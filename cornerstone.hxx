@@ -11,6 +11,8 @@
 #include <exception>
 #include <atomic>
 #include <algorithm>
+#include <unordered_map>
+#include <random>
 
 #include "pp_util.hxx"
 #include "basic_types.hxx"
@@ -27,6 +29,7 @@
 #include "srv_config.hxx"
 #include "cluster_config.hxx"
 #include "srv_state.hxx"
+#include "srv_role.hxx"
 #include "log_store.hxx"
 #include "state_mgr.hxx"
 #include "msg_handler.hxx"
@@ -43,4 +46,5 @@
 #include "snapshot_sync_ctx.hxx"
 #include "snapshot_sync_req.hxx"
 #include "peer.hxx"
+#include "raft_server.hxx"
 #endif // _CORNERSTONE_HXX_

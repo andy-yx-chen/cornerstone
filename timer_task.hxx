@@ -7,7 +7,7 @@ namespace cornerstone {
     public:
         typedef std::function<void(T)> executor;
 
-        timer_task(executor& e, T ctx)
+        timer_task(executor e, T ctx)
             : exec_(e), ctx_(ctx) {}
     protected:
         virtual void exec() __override__ {
@@ -17,6 +17,23 @@ namespace cornerstone {
         }
     private:
         T ctx_;
+        executor exec_;
+    };
+
+    template<>
+    class timer_task<void> : public delayed_task {
+    public:
+        typedef std::function<void()> executor;
+
+        timer_task(executor e)
+            : exec_(e) {}
+    protected:
+        virtual void exec() __override__ {
+            if (exec_) {
+                exec_();
+            }
+        }
+    private:
         executor exec_;
     };
 }

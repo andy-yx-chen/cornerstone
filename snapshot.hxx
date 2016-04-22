@@ -27,8 +27,8 @@ namespace cornerstone {
             return size_;
         }
 
-        cluster_config* get_last_config() const {
-            return last_config_;
+        cluster_config& get_last_config() const {
+            return *last_config_;
         }
 
     private:

@@ -136,6 +136,7 @@
     <ClInclude Include="peer.hxx" />
     <ClInclude Include="pp_util.hxx" />
     <ClInclude Include="raft_params.hxx" />
+    <ClInclude Include="raft_server.hxx" />
     <ClInclude Include="req_msg.hxx" />
     <ClInclude Include="resp_msg.hxx" />
     <ClInclude Include="rpc_cli.hxx" />
@@ -153,6 +154,7 @@
     <ClInclude Include="timer_task.hxx" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="peer.cxx" />
     <ClCompile Include="tests\test_async_result.cxx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

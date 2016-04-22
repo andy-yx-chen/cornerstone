@@ -21,7 +21,7 @@ namespace cornerstone {
 
         ulong get_offset() const { return offset_; }
 
-        buffer* get_data() const { return data_; }
+        buffer& get_data() const { return *data_; }
 
         bool is_done() const { return done_; }
 

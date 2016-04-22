@@ -7,8 +7,10 @@ namespace cornerstone {
     public:
         typedef std::function<void(T, std::exception*)> handler_type;
         async_result() : has_result_(false), err_(nilptr), lock_(), cv_() {}
-        async_result(T result)
+        explicit async_result(T result)
             : result_(result), has_result_(true), err_(nilptr), lock_(), cv_() {}
+        explicit async_result(handler_type handler)
+            : handler_(handler), has_result_(true), err_(nilptr), lock_(), cv_() {}
 
         ~async_result() {}
 
