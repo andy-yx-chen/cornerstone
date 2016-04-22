@@ -120,6 +120,9 @@
     <ClInclude Include="raft_server.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="strfmt.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tests\test_async_result.cxx">
@@ -127,6 +130,9 @@
     </ClCompile>
     <ClCompile Include="peer.cxx">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\test_runner.cxx">
+      <Filter>Source Files\tests</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

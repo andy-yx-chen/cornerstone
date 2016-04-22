@@ -1,0 +1,8 @@
+TARGETNAME=testr
+UMTYPE=console
+USE_MSVCRT=YES
+USE_UNICODE=NO
+DEBUG=YES
+SOURCES=\
+	test_async_result.cxx\
+    test_runner.cxx

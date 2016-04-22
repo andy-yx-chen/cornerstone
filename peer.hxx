@@ -124,9 +124,9 @@ namespace cornerstone {
             current_hb_interval_ = hb_interval_;
         }
 
-        void send_req(req_msg* req, async_result<resp_msg*>::handler_type& handler);
+        void send_req(req_msg* req, async_result<resp_msg*, rpc_exception*>::handler_type& handler);
     private:
-        void handle_rpc_result(req_msg* req, async_result<resp_msg*>* pending_result, resp_msg* resp, std::exception* err);
+        void handle_rpc_result(req_msg* req, async_result<resp_msg*, rpc_exception*>* pending_result, resp_msg* resp, rpc_exception* err);
     private:
         const srv_config& config_;
         rpc_client* rpc_;

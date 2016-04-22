@@ -6,7 +6,7 @@ namespace cornerstone{
         conf,
         cluster_server,
         log_pack,
-        snapshot_sync_req
+        snp_sync_req
     };
 }
 #endif // _LOG_VALUE_TYPE_HXX_

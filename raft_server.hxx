@@ -2,7 +2,7 @@
 #define _RAFT_SERVER_HXX_
 
 namespace cornerstone {
-    class raft_server {
+    class raft_server : public msg_handler {
     public:
         raft_server(context* ctx)
         : leader_(-1),
@@ -53,7 +53,7 @@ namespace cornerstone {
 
             election_task_ = new timer_task<void>(std::bind(&raft_server::handle_election_timeout, this));
             restart_election_timer();
-            //
+            l_.debug(strfmt<30>("server %d started").fmt(id_));
         }
 
         ~raft_server() {
@@ -74,10 +74,33 @@ namespace cornerstone {
     __nocopy__(raft_server)
     
     public:
-        //
+        virtual resp_msg* process_req(req_msg& req) __override__;
 
     private:
+        resp_msg* handle_append_entries(req_msg& req);
+        resp_msg* handle_vote_req(req_msg& req);
+        resp_msg* handle_cli_req(req_msg& req);
+        resp_msg* handle_extended_msg(req_msg& req);
+        resp_msg* handle_install_snapshot_req(req_msg& req);
+        bool handle_snapshot_sync_req(snapshot_sync_req& req);
+        void request_vote();
+        void request_append_entries();
+        void request_append_entries(peer& p);
+        void handle_peer_resp(resp_msg* resp, rpc_exception* err);
+        void handle_append_entries_resp(resp_msg& resp);
+        void handle_install_snapshot_resp(resp_msg& resp);
+        void handle_voting_resp(resp_msg& resp);
+        void handle_ext_resp(resp_msg* resp, rpc_exception* err);
+        void handle_ext_resp_err(rpc_exception& err);
+        req_msg* create_append_entries_req(peer& p);
+        void commit(ulong target_idx);
+        bool update_term(ulong term);
+        void reconfigure(cluster_config* new_config);
+        void become_leader();
+        void become_follower();
+        void enable_hb_for_peer();
         void restart_election_timer();
+        void stop_election_timer();
         void handle_hb_timeout(peer& peer);
         void handle_election_timeout();
     private:

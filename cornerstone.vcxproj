@@ -151,11 +151,13 @@
     <ClInclude Include="srv_state.hxx" />
     <ClInclude Include="state_machine.hxx" />
     <ClInclude Include="state_mgr.hxx" />
+    <ClInclude Include="strfmt.hxx" />
     <ClInclude Include="timer_task.hxx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="peer.cxx" />
     <ClCompile Include="tests\test_async_result.cxx" />
+    <ClCompile Include="tests\test_runner.cxx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

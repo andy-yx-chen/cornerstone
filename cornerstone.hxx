@@ -1,6 +1,7 @@
 #ifndef _CORNERSTONE_HXX_
 #define _CORNERSTONE_HXX_
 
+#include <cstdio>
 #include <memory>
 #include <vector>
 #include <list>
@@ -15,10 +16,9 @@
 #include <random>
 
 #include "pp_util.hxx"
+#include "strfmt.hxx"
 #include "basic_types.hxx"
 #include "raft_params.hxx"
-#include "async.hxx"
-#include "logger.hxx"
 #include "msg_type.hxx"
 #include "buffer.hxx"
 #include "log_val_type.hxx"
@@ -26,6 +26,9 @@
 #include "msg_base.hxx"
 #include "req_msg.hxx"
 #include "resp_msg.hxx"
+#include "rpc_exception.hxx"
+#include "async.hxx"
+#include "logger.hxx"
 #include "srv_config.hxx"
 #include "cluster_config.hxx"
 #include "srv_state.hxx"
@@ -42,7 +45,6 @@
 #include "timer_task.hxx"
 #include "delayed_task_scheduler.hxx"
 #include "context.hxx"
-#include "rpc_exception.hxx"
 #include "snapshot_sync_ctx.hxx"
 #include "snapshot_sync_req.hxx"
 #include "peer.hxx"
