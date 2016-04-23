@@ -16,8 +16,8 @@ namespace cornerstone {
             }
         }
     private:
-        T ctx_;
         executor exec_;
+        T ctx_;
     };
 
     template<>
