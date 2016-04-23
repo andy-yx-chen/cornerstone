@@ -1,0 +1,21 @@
+CC=c++
+CFLAGS+=-std=c++0x -O0 -Wall
+
+OBJS=test_async_result.o test_strfmt.o test_runner.o
+
+.SUFFIXES	: .o .cxx
+.cxx.o	:
+	$(CC) $(CFLAGS) -c $(.IMPSRC)
+testr	: $(OBJS)
+	$(CC) -o $(.TARGET) $(.ALLSRC)
+	@mkdir debug
+	@mv *.o	debug\
+	@mv testr debug\
+
+clean	:
+	@rm -f debug
+
+
+
+
+
