@@ -6,18 +6,18 @@ namespace cornerstone {
     class async_result {
     public:
         typedef std::function<void(T, TE)> handler_type;
-        async_result() : has_result_(false), err_(), lock_(), cv_() {}
+        async_result() : err_(), has_result_(false), lock_(), cv_() {}
         explicit async_result(T result)
-            : result_(result), has_result_(true), err_(), lock_(), cv_() {}
+            : result_(result), err_(), has_result_(true), lock_(), cv_() {}
         explicit async_result(handler_type handler)
-            : handler_(handler), has_result_(true), err_(), lock_(), cv_() {}
+            : err_(), has_result_(true), handler_(handler), lock_(), cv_() {}
 
         ~async_result() {}
 
         __nocopy__(async_result)
 
     public:
-        void when_ready(handler_type& handler) {
+        void when_ready(handler_type handler) {
             std::lock_guard<std::mutex> guard(lock_);
             if (has_result_) {
                 handler(result_, err_);

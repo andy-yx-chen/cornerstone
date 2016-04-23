@@ -5,7 +5,7 @@ namespace cornerstone {
     class req_msg : public msg_base {
     public:
         req_msg(ulong term, msg_type type, int src, int dst, ulong last_log_term, ulong last_log_idx, ulong commit_idx)
-            : last_log_term_(last_log_term), last_log_idx_(last_log_idx), commit_idx_(commit_idx), log_entries_(), msg_base(term, type, src,dst) {
+            : msg_base(term, type, src, dst), last_log_term_(last_log_term), last_log_idx_(last_log_idx), commit_idx_(commit_idx), log_entries_() {
         }
         
         virtual ~req_msg() __override__ {

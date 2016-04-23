@@ -5,7 +5,7 @@ namespace cornerstone {
     class snapshot {
     public:
         snapshot(ulong last_log_idx, ulong last_log_term, cluster_config* last_config, ulong size = 0)
-            : last_log_idx_(last_log_idx), last_log_term_(last_log_term), last_config_(last_config), size_(size){}
+            : last_log_idx_(last_log_idx), last_log_term_(last_log_term), size_(size), last_config_(last_config){}
         ~snapshot() {
             if (last_config_ != nilptr) {
                 delete last_config_;
