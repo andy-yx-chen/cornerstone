@@ -21,7 +21,7 @@ namespace cornerstone {
         * The last log entry in store
         * @return a dummy constant entry with value set to null and term set to zero if no log entry in store
         */
-        virtual log_entry* last_entry() const = 0;
+        virtual log_entry& last_entry() const = 0;
 
         /**
         * Appends a log entry to store

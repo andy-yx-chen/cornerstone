@@ -8,8 +8,10 @@
     std::cout << "test " << #name << " passed." << std::endl
 
 __decl_test__(async_result);
+__decl_test__(strfmt);
 
 int main() {
     __run_test__(async_result);
+    __run_test__(strfmt);
     return 0;
 }

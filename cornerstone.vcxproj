@@ -156,8 +156,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="peer.cxx" />
+    <ClCompile Include="raft_server.cxx" />
+    <ClCompile Include="tests\sources" />
     <ClCompile Include="tests\test_async_result.cxx" />
     <ClCompile Include="tests\test_runner.cxx" />
+    <ClCompile Include="tests\test_strfmt.cxx" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="tests\Makefile.win" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

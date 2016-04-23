@@ -82,6 +82,11 @@ namespace cornerstone {
         resp_msg* handle_cli_req(req_msg& req);
         resp_msg* handle_extended_msg(req_msg& req);
         resp_msg* handle_install_snapshot_req(req_msg& req);
+        resp_msg* handle_rm_srv_req(req_msg& req);
+        resp_msg* handle_add_srv_req(req_msg& req);
+        resp_msg* handle_log_sync_req(req_msg& req);
+        resp_msg* handle_join_cluster_req(req_msg& req);
+        resp_msg* handle_leave_cluster_req(req_msg& req);
         bool handle_snapshot_sync_req(snapshot_sync_req& req);
         void request_vote();
         void request_append_entries();
@@ -93,6 +98,7 @@ namespace cornerstone {
         void handle_ext_resp(resp_msg* resp, rpc_exception* err);
         void handle_ext_resp_err(rpc_exception& err);
         req_msg* create_append_entries_req(peer& p);
+        req_msg* create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx);
         void commit(ulong target_idx);
         bool update_term(ulong term);
         void reconfigure(cluster_config* new_config);
@@ -103,7 +109,12 @@ namespace cornerstone {
         void stop_election_timer();
         void handle_hb_timeout(peer& peer);
         void handle_election_timeout();
+        void sync_log_to_new_srv(ulong start_idx);
+        void invite_srv_to_join_cluster();
+        void rm_srv_from_cluster(int srv_id);
+        int get_snapshot_sync_block_size() const;
     private:
+        static const int default_snapshot_sync_block_size;
         int leader_;
         int id_;
         int votes_responded_;

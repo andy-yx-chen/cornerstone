@@ -17,6 +17,11 @@ namespace cornerstone {
         bool get_accepted() const {
             return accepted_;
         }
+
+        void accept(ulong next_idx) {
+            next_idx_ = next_idx;
+            accepted_ = true;
+        }
     private:
         ulong next_idx_;
         bool accepted_;

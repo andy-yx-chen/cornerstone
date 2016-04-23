@@ -134,5 +134,19 @@
     <ClCompile Include="tests\test_runner.cxx">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
+    <ClCompile Include="tests\sources">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\test_strfmt.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="raft_server.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="tests\Makefile.win">
+      <Filter>Source Files\tests</Filter>
+    </None>
   </ItemGroup>
 </Project>
