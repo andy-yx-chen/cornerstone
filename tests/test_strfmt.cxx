@@ -1,6 +1,7 @@
 #include "../cornerstone.hxx"
 #include <cstdlib>
 #include <cassert>
+#include <cstring>
 
 using namespace cornerstone;
 
