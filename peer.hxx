@@ -6,6 +6,7 @@ namespace cornerstone {
     public:
         peer(const srv_config& config, const context& ctx, timer_task<peer&>::executor hb_exec)
             : config_(config),
+            rpc_(ctx.rpc_cli_factory_->create_client(config.get_endpoint())),
             current_hb_interval_(ctx.params_->heart_beat_interval_),
             hb_interval_(ctx.params_->heart_beat_interval_),
             rpc_backoff_(ctx.params_->rpc_failure_backoff_),
@@ -15,21 +16,9 @@ namespace cornerstone {
             busy_flag_(false),
             pending_commit_flag_(false),
             hb_enabled_(false),
+            hb_task_(new timer_task<peer&>(hb_exec, *this)),
             snp_sync_ctx_(nilptr),
             lock_(){
-                rpc_ = ctx.rpc_cli_factory_->create_client(config.get_endpoint());
-                hb_task_ = new timer_task<peer&>(hb_exec, *this);
-        }
-
-        ~peer() {
-            delete rpc_;
-            if (hb_task_ != nilptr) {
-                delete hb_task_;
-            }
-
-            if (snp_sync_ctx_ != nilptr) {
-                delete snp_sync_ctx_;
-            }
         }
 
     __nocopy__(peer)
@@ -102,18 +91,15 @@ namespace cornerstone {
 
         void set_snapshot_in_sync(snapshot* s) {
             if (s == nilptr) {
-                if (snp_sync_ctx_ != nilptr) {
-                    delete snp_sync_ctx_;
-                    snp_sync_ctx_ = nilptr;
-                }
+                snp_sync_ctx_.reset(nilptr);
             }
             else {
-                snp_sync_ctx_ = new snapshot_sync_ctx(s);
+                snp_sync_ctx_.reset(new snapshot_sync_ctx(s));
             }
         }
 
-        snapshot_sync_ctx& get_snapshot_sync_ctx() const {
-            return *snp_sync_ctx_;
+        snapshot_sync_ctx* get_snapshot_sync_ctx() const {
+            return snp_sync_ctx_.get();
         }
 
         void slow_down_hb() {
@@ -124,12 +110,12 @@ namespace cornerstone {
             current_hb_interval_ = hb_interval_;
         }
 
-        void send_req(req_msg* req, async_result<resp_msg*, rpc_exception*>::handler_type& handler);
+        void send_req(req_msg* req, rpc_handler& handler);
     private:
-        void handle_rpc_result(req_msg* req, async_result<resp_msg*, rpc_exception*>* pending_result, resp_msg* resp, rpc_exception* err);
+        void handle_rpc_result(req_msg* req, rpc_result* pending_result, resp_msg* resp, rpc_exception* err);
     private:
         const srv_config& config_;
-        rpc_client* rpc_;
+        std::unique_ptr<rpc_client> rpc_;
         int current_hb_interval_;
         int hb_interval_;
         int rpc_backoff_;
@@ -139,8 +125,8 @@ namespace cornerstone {
         std::atomic_bool busy_flag_;
         std::atomic_bool pending_commit_flag_;
         bool hb_enabled_;
-        timer_task<peer&>* hb_task_;
-        snapshot_sync_ctx* snp_sync_ctx_;
+        std::unique_ptr<timer_task<peer&>> hb_task_;
+        std::unique_ptr<snapshot_sync_ctx> snp_sync_ctx_;
         std::mutex lock_;
     };
 }

@@ -15,7 +15,7 @@ namespace cornerstone {
 
 		__nocopy__(cluster_config)
 	public:
-		static cluster_config* deserialize(buffer* buf);
+		static cluster_config* deserialize(buffer& buf);
 
 		ulong get_log_idx() const {
 			return log_idx_;

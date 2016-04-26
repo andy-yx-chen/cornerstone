@@ -16,6 +16,7 @@ namespace cornerstone {
         void set_commit_idx(ulong commit_idx) { commit_idx_ = commit_idx; }
         int get_voted_for() const { return voted_for_; }
         void set_voted_for(int voted_for) { voted_for_ = voted_for; }
+        void inc_term() { term_ += 1; }
     private:
         ulong term_;
         ulong commit_idx_;

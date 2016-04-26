@@ -27,14 +27,14 @@ namespace cornerstone {
         * Appends a log entry to store
         * @param entry
         */
-        virtual void append(log_entry* entry) = 0;
+        virtual void append(log_entry& entry) = 0;
 
         /**
         * Over writes a log entry at index of {@code index}
         * @param index a value < this->next_slot(), and starts from 1
         * @param entry
         */
-        virtual void write_at(ulong index, log_entry* entry) = 0;
+        virtual void write_at(ulong index, log_entry& entry) = 0;
 
         /**
         * Get log entries with index between start and end
@@ -64,7 +64,7 @@ namespace cornerstone {
         * @param index, the log index that start applying the pack, index starts from 1
         * @param pack
         */
-        virtual void apply_pack(ulong index, buffer* pack) = 0;
+        virtual void apply_pack(ulong index, buffer& pack) = 0;
 
         /**
         * Compact the log store by removing all log entries including the log at the last_log_index

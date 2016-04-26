@@ -9,7 +9,7 @@ namespace cornerstone {
         async_result() : err_(), has_result_(false), lock_(), cv_() {}
         explicit async_result(T result)
             : result_(result), err_(), has_result_(true), lock_(), cv_() {}
-        explicit async_result(handler_type handler)
+        explicit async_result(handler_type& handler)
             : err_(), has_result_(true), handler_(handler), lock_(), cv_() {}
 
         ~async_result() {}
@@ -17,7 +17,7 @@ namespace cornerstone {
         __nocopy__(async_result)
 
     public:
-        void when_ready(handler_type handler) {
+        void when_ready(handler_type& handler) {
             std::lock_guard<std::mutex> guard(lock_);
             if (has_result_) {
                 handler(result_, err_);

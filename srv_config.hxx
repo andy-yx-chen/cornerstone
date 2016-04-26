@@ -10,7 +10,7 @@ namespace cornerstone {
         __nocopy__(srv_config)
 
     public:
-        static srv_config* deserialize(buffer* buf);
+        static srv_config* deserialize(buffer& buf);
 
         int get_id() const {
             return id_;

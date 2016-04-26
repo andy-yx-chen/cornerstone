@@ -11,7 +11,7 @@ testr	: $(OBJS)
 	$(CC) $(LFLAGS) -o $(.TARGET) $(.ALLSRC)
 	@-mkdir debug
 	@-mv *.o debug/
-	@-mv testr debug/
+	@-mv $(.TARGET) debug/
 
 clean	:
 	@-rm -rf debug

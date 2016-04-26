@@ -13,7 +13,7 @@ namespace cornerstone {
 
     __nocopy__(snapshot_sync_req)
     public:
-        static snapshot_sync_req* deserialize(buffer* buf);
+        static snapshot_sync_req* deserialize(buffer& buf);
 
         snapshot& get_snapshot() const {
             return snapshot_;

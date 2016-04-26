@@ -2,9 +2,10 @@
 
 using namespace cornerstone;
 
-void peer::send_req(req_msg* req, async_result<resp_msg*, rpc_exception*>::handler_type& handler) {
+void peer::send_req(req_msg* req, rpc_handler& handler) {
     async_result<resp_msg*, rpc_exception*>* pending = new async_result<resp_msg*, rpc_exception*>(handler);
-    rpc_->send(req, std::bind(&peer::handle_rpc_result, this, req, pending, std::placeholders::_1, std::placeholders::_2));
+    rpc_handler h = (rpc_handler)std::bind(&peer::handle_rpc_result, this, req, pending, std::placeholders::_1, std::placeholders::_2);
+    rpc_->send(req, h);
 }
 
 void peer::handle_rpc_result(req_msg* req, async_result<resp_msg*, rpc_exception*>* pending_result, resp_msg* resp, rpc_exception* err) {
