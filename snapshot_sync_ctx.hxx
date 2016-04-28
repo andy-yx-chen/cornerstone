@@ -7,12 +7,6 @@ namespace cornerstone {
         snapshot_sync_ctx(snapshot* s, ulong offset = 0L)
             : snapshot_(s), offset_(offset) {}
 
-        ~snapshot_sync_ctx() {
-            if (snapshot_ != nilptr) {
-                delete snapshot_;
-            }
-        }
-
     __nocopy__(snapshot_sync_ctx)
     
     public:
@@ -28,7 +22,7 @@ namespace cornerstone {
             offset_ = offset;
         }
     public:
-        snapshot* snapshot_;
+        std::unique_ptr<snapshot> snapshot_;
         ulong offset_;
     };
 }

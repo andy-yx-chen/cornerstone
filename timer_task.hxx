@@ -25,7 +25,7 @@ namespace cornerstone {
     public:
         typedef std::function<void()> executor;
 
-        timer_task(executor& e)
+        explicit timer_task(executor& e)
             : exec_(e) {}
     protected:
         virtual void exec() __override__ {

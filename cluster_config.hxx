@@ -15,6 +15,9 @@ namespace cornerstone {
 
 		__nocopy__(cluster_config)
 	public:
+        typedef std::list<srv_config*>::iterator srv_itor;
+        typedef std::list<srv_config*>::const_iterator const_srv_itor;
+
 		static cluster_config* deserialize(buffer& buf);
 
 		ulong get_log_idx() const {
@@ -46,8 +49,6 @@ namespace cornerstone {
 
 		buffer* serialize();
 	private:
-		typedef std::list<srv_config*>::iterator srv_itor;
-		typedef std::list<srv_config*>::const_iterator const_srv_itor;
 		ulong log_idx_;
 		ulong prev_log_idx_;
 		std::list<srv_config*> servers_;

@@ -7,24 +7,15 @@ namespace cornerstone {
         context(state_mgr* mgr, state_machine* m, rpc_listener* listener, logger* l, rpc_client_factory* cli_factory, delayed_task_scheduler* scheduler, raft_params* params = nilptr)
             : state_mgr_(mgr), state_machine_(m), rpc_listener_(listener), logger_(l), rpc_cli_factory_(cli_factory), scheduler_(scheduler), params_(params == nilptr ? new raft_params : params) {}
 
-        ~context() {
-            delete state_mgr_;
-            delete state_machine_;
-            delete rpc_listener_;
-            delete logger_;
-            delete rpc_cli_factory_;
-            delete scheduler_;
-            delete params_;
-        }
-
+    __nocopy__(context)
     public:
-        state_mgr* state_mgr_;
-        state_machine* state_machine_;
-        rpc_listener* rpc_listener_;
-        logger* logger_;
-        rpc_client_factory* rpc_cli_factory_;
-        delayed_task_scheduler* scheduler_;
-        raft_params* params_;
+        std::unique_ptr<state_mgr> state_mgr_;
+        std::unique_ptr<state_machine> state_machine_;
+        std::unique_ptr<rpc_listener> rpc_listener_;
+        std::unique_ptr<logger> logger_;
+        std::unique_ptr<rpc_client_factory> rpc_cli_factory_;
+        std::unique_ptr<delayed_task_scheduler> scheduler_;
+        std::unique_ptr<raft_params> params_;
     };
 }
 

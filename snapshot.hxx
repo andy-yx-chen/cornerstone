@@ -4,13 +4,8 @@
 namespace cornerstone {
     class snapshot {
     public:
-        snapshot(ulong last_log_idx, ulong last_log_term, cluster_config* last_config, ulong size = 0)
+        snapshot(ulong last_log_idx, ulong last_log_term, const std::shared_ptr<cluster_config>& last_config, ulong size = 0)
             : last_log_idx_(last_log_idx), last_log_term_(last_log_term), size_(size), last_config_(last_config){}
-        ~snapshot() {
-            if (last_config_ != nilptr) {
-                delete last_config_;
-            }
-        }
 
         __nocopy__(snapshot)
 
@@ -27,15 +22,15 @@ namespace cornerstone {
             return size_;
         }
 
-        cluster_config& get_last_config() const {
-            return *last_config_;
+        const std::shared_ptr<cluster_config>& get_last_config() const {
+            return last_config_;
         }
 
     private:
         ulong last_log_idx_;
         ulong last_log_term_;
         ulong size_;
-        cluster_config* last_config_;
+        std::shared_ptr<cluster_config> last_config_;
     };
 }
 

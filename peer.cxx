@@ -14,7 +14,8 @@ void peer::handle_rpc_result(req_msg* req, async_result<resp_msg*, rpc_exception
         pending_result->set_result(resp, nilptr);
     }
     else {
-        if (req->get_type() == msg_type::append_entries_request) {
+        if (req->get_type() == msg_type::append_entries_request ||
+            req->get_type() == msg_type::install_snapshot_request) {
             set_free();
         }
 

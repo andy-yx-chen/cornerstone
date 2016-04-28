@@ -16,6 +16,7 @@ namespace cornerstone {
         snp_in_progress_(),
         ctx_(ctx),
         scheduler_(*ctx->scheduler_),
+        election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
         election_task_(nilptr),
         peers_(),
         role_(srv_role::follower),
@@ -47,14 +48,13 @@ namespace cornerstone {
                 }
             }
 
-            for (std::list<srv_config*>::const_iterator it = config_->get_servers().begin(); it != config_->get_servers().end(); ++it) {
+            std::list<srv_config*>& srvs(config_->get_servers());
+            for (cluster_config::srv_itor it = srvs.begin(); it != srvs.end(); ++it) {
                 if ((*it)->get_id() != id_) {
-                    peers_.insert(std::make_pair((*it)->get_id(), new peer(**it, *ctx_, std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1))));
+                    peers_.insert(std::make_pair((*it)->get_id(), new peer(**it, *ctx_, (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1))));
                 }
             }
 
-            timer_task<void>::executor e = (timer_task<void>::executor)std::bind(&raft_server::handle_election_timeout, this);
-            election_task_.reset(new timer_task<void>(e));
             restart_election_timer();
             l_.debug(strfmt<30>("server %d started").fmt(id_));
         }
@@ -98,10 +98,10 @@ namespace cornerstone {
         req_msg* create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx);
         void commit(ulong target_idx);
         bool update_term(ulong term);
-        void reconfigure(cluster_config* new_config);
+        void reconfigure(const std::shared_ptr<cluster_config>& new_config);
         void become_leader();
         void become_follower();
-        void enable_hb_for_peer();
+        void enable_hb_for_peer(peer& p);
         void restart_election_timer();
         void stop_election_timer();
         void handle_hb_timeout(peer& peer);
@@ -110,6 +110,8 @@ namespace cornerstone {
         void invite_srv_to_join_cluster();
         void rm_srv_from_cluster(int srv_id);
         int get_snapshot_sync_block_size() const;
+        void on_snapshot_completed(std::shared_ptr<snapshot> s, bool result, std::exception* err);
+        void on_retryable_req_err(peer* p, req_msg* req);
     private:
         static const int default_snapshot_sync_block_size;
         int leader_;
@@ -123,7 +125,8 @@ namespace cornerstone {
         std::atomic_bool snp_in_progress_;
         std::unique_ptr<context> ctx_;
         delayed_task_scheduler& scheduler_;
-        std::unique_ptr<timer_task<void>> election_task_;
+        timer_task<void>::executor election_exec_;
+        std::shared_ptr<delayed_task> election_task_;
         std::unordered_map<int, peer*> peers_;
         srv_role role_;
         std::unique_ptr<srv_state> state_;
@@ -131,7 +134,7 @@ namespace cornerstone {
         state_machine& state_machine_;
         logger& l_;
         std::function<int()> rand_timeout_;
-        std::unique_ptr<cluster_config> config_;
+        std::shared_ptr<cluster_config> config_;
         std::unique_ptr<peer> srv_to_join_;
         std::mutex lock_;
         rpc_handler resp_handler_;

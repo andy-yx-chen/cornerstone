@@ -4,7 +4,7 @@
 namespace cornerstone {
     class peer {
     public:
-        peer(const srv_config& config, const context& ctx, timer_task<peer&>::executor hb_exec)
+        peer(const srv_config& config, const context& ctx, timer_task<peer&>::executor& hb_exec)
             : config_(config),
             rpc_(ctx.rpc_cli_factory_->create_client(config.get_endpoint())),
             current_hb_interval_(ctx.params_->heart_beat_interval_),
@@ -16,6 +16,7 @@ namespace cornerstone {
             busy_flag_(false),
             pending_commit_flag_(false),
             hb_enabled_(false),
+            hb_exec_(hb_exec),
             hb_task_(new timer_task<peer&>(hb_exec, *this)),
             snp_sync_ctx_(nilptr),
             lock_(){
@@ -32,8 +33,8 @@ namespace cornerstone {
             return config_;
         }
 
-        timer_task<peer&>& get_hb_task() const {
-            return *hb_task_;
+        std::shared_ptr<delayed_task>& get_hb_task() {
+            return hb_task_;
         }
 
         std::mutex& get_lock() {
@@ -59,8 +60,9 @@ namespace cornerstone {
 
         void enable_hb(bool enable) {
             hb_enabled_ = enable;
-            if (!enable && hb_task_ != nilptr) {
+            if (!enable) {
                 hb_task_->cancel();
+                hb_task_.reset(new timer_task<peer&>(hb_exec_, *this));
             }
         }
 
@@ -91,7 +93,7 @@ namespace cornerstone {
 
         void set_snapshot_in_sync(snapshot* s) {
             if (s == nilptr) {
-                snp_sync_ctx_.reset(nilptr);
+                snp_sync_ctx_.reset();
             }
             else {
                 snp_sync_ctx_.reset(new snapshot_sync_ctx(s));
@@ -125,7 +127,8 @@ namespace cornerstone {
         std::atomic_bool busy_flag_;
         std::atomic_bool pending_commit_flag_;
         bool hb_enabled_;
-        std::unique_ptr<timer_task<peer&>> hb_task_;
+        timer_task<peer&>::executor hb_exec_;
+        std::shared_ptr<delayed_task> hb_task_;
         std::unique_ptr<snapshot_sync_ctx> snp_sync_ctx_;
         std::mutex lock_;
     };

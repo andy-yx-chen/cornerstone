@@ -20,6 +20,9 @@ namespace cornerstone {
         char buf_[N];
         const char* fmt_;
     };
+
+    typedef strfmt<100> sstrfmt;
+    typedef strfmt<200> lstrfmt;
 }
 
 #endif //_STRING_FORMATTER_HXX_
