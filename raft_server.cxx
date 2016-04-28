@@ -996,6 +996,9 @@ resp_msg* raft_server::handle_add_srv_req(req_msg& req) {
     }
 
     config_changing_ = true;
-    // how to create a peer object without worrying about srv_conf get destroyed?
+    conf_to_add_ = std::move(srv_conf);
+    srv_to_join_.reset(new peer(*conf_to_add_, *ctx_, (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1)));
+    invite_srv_to_join_cluster();
+    resp->accept(log_store_->next_slot());
     return resp;
 }

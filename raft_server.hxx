@@ -6,29 +6,30 @@ namespace cornerstone {
     public:
         raft_server(context* ctx)
         : leader_(-1),
-        id_(ctx->state_mgr_->server_id()),
-        votes_responded_(0),
-        votes_granted_(0),
-        election_completed_(true),
-        config_changing_(false),
-        catching_up_(false),
-        steps_to_down_(0),
-        snp_in_progress_(),
-        ctx_(ctx),
-        scheduler_(*ctx->scheduler_),
-        election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
-        election_task_(nilptr),
-        peers_(),
-        role_(srv_role::follower),
-        state_(ctx->state_mgr_->read_state()),
-        log_store_(ctx->state_mgr_->load_log_store()),
-        state_machine_(*ctx->state_machine_),
-        l_(*ctx->logger_),
-        config_(ctx->state_mgr_->load_config()),
-        srv_to_join_(nilptr),
-        lock_(),
-        resp_handler_((rpc_handler)std::bind(&raft_server::handle_peer_resp, this, std::placeholders::_1, std::placeholders::_2)),
-        ex_resp_handler_((rpc_handler)std::bind(&raft_server::handle_ext_resp, this, std::placeholders::_1, std::placeholders::_2)){
+            id_(ctx->state_mgr_->server_id()),
+            votes_responded_(0),
+            votes_granted_(0),
+            election_completed_(true),
+            config_changing_(false),
+            catching_up_(false),
+            steps_to_down_(0),
+            snp_in_progress_(),
+            ctx_(ctx),
+            scheduler_(*ctx->scheduler_),
+            election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
+            election_task_(nilptr),
+            peers_(),
+            role_(srv_role::follower),
+            state_(ctx->state_mgr_->read_state()),
+            log_store_(ctx->state_mgr_->load_log_store()),
+            state_machine_(*ctx->state_machine_),
+            l_(*ctx->logger_),
+            config_(ctx->state_mgr_->load_config()),
+            srv_to_join_(nilptr),
+            conf_to_add_(nilptr),
+            lock_(),
+            resp_handler_((rpc_handler)std::bind(&raft_server::handle_peer_resp, this, std::placeholders::_1, std::placeholders::_2)),
+            ex_resp_handler_((rpc_handler)std::bind(&raft_server::handle_ext_resp, this, std::placeholders::_1, std::placeholders::_2)){
             unsigned int seed = (unsigned int)std::chrono::system_clock::now().time_since_epoch().count();
             std::default_random_engine engine(seed);
             std::uniform_int_distribution<int> distribution(ctx->params_->election_timeout_lower_bound_, ctx->params_->election_timeout_upper_bound_);
@@ -136,6 +137,7 @@ namespace cornerstone {
         std::function<int()> rand_timeout_;
         std::shared_ptr<cluster_config> config_;
         std::unique_ptr<peer> srv_to_join_;
+        std::unique_ptr<srv_config> conf_to_add_;
         std::mutex lock_;
         rpc_handler resp_handler_;
         rpc_handler ex_resp_handler_;
