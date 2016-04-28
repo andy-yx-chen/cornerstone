@@ -1002,3 +1002,162 @@ resp_msg* raft_server::handle_add_srv_req(req_msg& req) {
     resp->accept(log_store_->next_slot());
     return resp;
 }
+
+resp_msg* raft_server::handle_log_sync_req(req_msg& req) {
+    std::vector<log_entry*>& entries = req.log_entries();
+    resp_msg* resp = new resp_msg(state_->get_term(), msg_type::sync_log_response, id_, req.get_src());
+    if (entries.size() != 1 || entries[0]->get_val_type() != log_val_type::log_pack) {
+        l_.info("receive an invalid LogSyncRequest as the log entry value doesn't meet the requirements");
+        return resp;
+    }
+
+    if (!catching_up_) {
+        l_.info("This server is ready for cluster, ignore the request");
+        return resp;
+    }
+
+    log_store_->apply_pack(req.get_last_log_idx() + 1, entries[0]->get_buf());
+    commit(log_store_->next_slot() - 1);
+    resp->accept(log_store_->next_slot());
+    return resp;
+}
+
+void raft_server::sync_log_to_new_srv(ulong start_idx) {
+    // only sync committed logs
+    int gap = (int)(state_->get_commit_idx() - start_idx);
+    if (gap < ctx_->params_->log_sync_stop_gap_) {
+        l_.info(lstrfmt("LogSync is done for server %d with log gap %d, now put the server into cluster").fmt(srv_to_join_->get_id(), gap));
+        cluster_config* new_conf = new cluster_config(log_store_->next_slot(), config_->get_log_idx());
+        new_conf->get_servers().insert(new_conf->get_servers().end(), config_->get_servers().begin(), config_->get_servers().end());
+        new_conf->get_servers().push_back(conf_to_add_.release());
+        std::unique_ptr<log_entry> entry(new log_entry(state_->get_term(), new_conf->serialize(), log_val_type::conf));
+        log_store_->append(*entry);
+        config_.reset(new_conf);
+        enable_hb_for_peer(*srv_to_join_);
+        peers_.insert(std::make_pair(srv_to_join_->get_id(), srv_to_join_.release()));
+        config_changing_ = false;
+        request_append_entries();
+        return;
+    }
+
+    req_msg* req = nilptr;
+    if (start_idx > 0 && start_idx < log_store_->start_index()) {
+        req = create_sync_snapshot_req(*srv_to_join_, start_idx, state_->get_term(), state_->get_commit_idx());
+    }
+    else {
+        int size_to_sync = std::min(gap, ctx_->params_->log_sync_batch_size_);
+        buffer* log_pack = log_store_->pack(start_idx, size_to_sync);
+        req = new req_msg(state_->get_term(), msg_type::sync_log_request, id_, srv_to_join_->get_id(), 0L, start_idx - 1, state_->get_commit_idx());
+        req->log_entries().push_back(new log_entry(state_->get_term(), log_pack, log_val_type::log_pack));
+    }
+
+    srv_to_join_->send_req(req, ex_resp_handler_);
+}
+
+void raft_server::invite_srv_to_join_cluster() {
+    req_msg* req = new req_msg(state_->get_term(), msg_type::join_cluster_request, id_, srv_to_join_->get_id(), 0L, log_store_->next_slot() - 1, state_->get_commit_idx());
+    req->log_entries().push_back(new log_entry(state_->get_term(), config_->serialize(), log_val_type::conf));
+    srv_to_join_->send_req(req, ex_resp_handler_);
+}
+
+resp_msg* raft_server::handle_join_cluster_req(req_msg& req) {
+    std::vector<log_entry*>& entries = req.log_entries();
+    resp_msg* resp = new resp_msg(state_->get_term(), msg_type::join_cluster_response, id_, req.get_src());
+    if (entries.size() != 1 || entries[0]->get_val_type() != log_val_type::conf) {
+        l_.info("receive an invalid JoinClusterRequest as the log entry value doesn't meet the requirements");
+        return resp;
+    }
+
+    if (catching_up_) {
+        l_.info("this server is already in log syncing mode");
+        return resp;
+    }
+
+    catching_up_ = true;
+    role_ = srv_role::follower;
+    leader_ = req.get_src();
+    state_->set_commit_idx(0);
+    state_->set_voted_for(-1);
+    state_->set_term(req.get_term());
+    ctx_->state_mgr_->save_state(*state_);
+    reconfigure(std::shared_ptr<cluster_config>(cluster_config::deserialize(entries[0]->get_buf())));
+    resp->accept(log_store_->next_slot());
+    return resp;
+}
+
+resp_msg* raft_server::handle_leave_cluster_req(req_msg& req) {
+    resp_msg* resp = new resp_msg(state_->get_term(), msg_type::leave_cluster_response, id_, req.get_src());
+    steps_to_down_ = 2;
+    resp->accept(log_store_->next_slot());
+    return resp;
+}
+
+void raft_server::rm_srv_from_cluster(int srv_id) {
+    peer_itor it = peers_.find(srv_id);
+    if (it == peers_.end()) {
+        return;
+    }
+
+    peer* p = it->second;
+    p->enable_hb(false);
+    peers_.erase(it);
+    cluster_config* new_conf = new cluster_config(log_store_->next_slot(), config_->get_log_idx());
+    for (cluster_config::const_srv_itor it = config_->get_servers().begin(); it != config_->get_servers().end(); ++it) {
+        if ((*it)->get_id() != srv_id) {
+            new_conf->get_servers().push_back(*it);
+        }
+    }
+
+    config_changing_ = false;
+    std::unique_ptr<log_entry> entry(new log_entry(state_->get_term(), new_conf->serialize(), log_val_type::conf));
+    log_store_->append(*entry);
+    config_.reset(new_conf);
+    request_append_entries();
+}
+
+int raft_server::get_snapshot_sync_block_size() const {
+    int block_size = ctx_->params_->snapshot_block_size_;
+    return block_size == 0 ? default_snapshot_sync_block_size : block_size;
+}
+
+req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx) {
+    std::lock_guard<std::mutex> guard(p.get_lock());
+    snapshot_sync_ctx* sync_ctx = p.get_snapshot_sync_ctx();
+    snapshot* snp = sync_ctx == nilptr ? nilptr : &sync_ctx->get_snapshot();
+    std::unique_ptr<snapshot> last_snp(state_machine_.last_snapshot());
+    if (snp == nilptr || (last_snp && last_snp->get_last_log_idx() > snp->get_last_log_idx())) {
+        snp = last_snp.release();
+        if (snp == nilptr || last_log_idx > snp->get_last_log_idx()) {
+            l_.err(
+                lstrfmt("system is running into fatal errors, failed to find a snapshot for peer %d(snapshot null: %d, snapshot doesn't contais lastLogIndex: %d")
+                .fmt(p.get_id(), snp == nilptr, last_log_idx > snp->get_last_log_idx()));
+            ::exit(-1);
+            return nilptr;
+        }
+
+        if (snp->size() < 1L) {
+            l_.err("invalid snapshot, this usually means a bug from state machine implementation, stop the system to prevent further errors");
+            ::exit(-1);
+            return nilptr;
+        }
+
+        l_.info(sstrfmt("trying to sync snapshot with last index %llu to peer %d").fmt(snp->get_last_log_idx(), p.get_id()));
+        p.set_snapshot_in_sync(snp);
+    }
+
+    ulong offset = p.get_snapshot_sync_ctx()->get_offset();
+    int sz_left = (int)(snp->size() - offset);
+    int blk_sz = get_snapshot_sync_block_size();
+    buffer* data = buffer::alloc((size_t)(std::min(blk_sz, sz_left)));
+    int sz_rd = state_machine_.read_snapshot_data(*snp, offset, *data);
+    if ((size_t)sz_rd < data->size()) {
+        l_.err(lstrfmt("only %d bytes could be read from snapshot while %d bytes are expected, must be something wrong, exit.").fmt(sz_rd, data->size()));
+        ::exit(-1);
+        return nilptr;
+    }
+
+    std::unique_ptr<snapshot_sync_req> sync_req(new snapshot_sync_req(*snp, offset, data, (offset + (ulong)data->size()) >= snp->size()));
+    req_msg* req = new req_msg(term, msg_type::install_snapshot_request, id_, p.get_id(), snp->get_last_log_term(), snp->get_last_log_idx(), commit_idx);
+    req->log_entries().push_back(new log_entry(term, sync_req->serialize(), log_val_type::snp_sync_req));
+    return req;
+}
