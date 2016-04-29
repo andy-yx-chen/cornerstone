@@ -103,6 +103,11 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
                 reconfigure(std::shared_ptr<cluster_config>(ctx_->state_mgr_->load_config()));
             }
 
+            std::unique_ptr<log_entry> old_entry(log_store_->entry_at(idx));
+            if (old_entry->get_val_type() == log_val_type::app_log) {
+                state_machine_.rollback(idx, old_entry->get_buf());
+            }
+
             log_store_->write_at(idx++, *(req.log_entries().at(log_idx++)));
         }
 
@@ -112,6 +117,9 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
             log_store_->append(*entry);
             if (entry->get_val_type() == log_val_type::conf) {
                 reconfigure(std::shared_ptr<cluster_config>(cluster_config::deserialize(entry->get_buf())));
+            }
+            else {
+                state_machine_.pre_commit(log_store_->next_slot() - 1, entry->get_buf());
             }
         }
     }
@@ -146,6 +154,7 @@ resp_msg* raft_server::handle_cli_req(req_msg& req) {
     std::vector<log_entry*>& entries = req.log_entries();
     for (size_t i = 0; i < entries.size(); ++i) {
         log_store_->append(*entries.at(i));
+        state_machine_.pre_commit(log_store_->next_slot() - 1, entries.at(i)->get_buf());
     }
 
     // urgent commit, so that the commit will not depend on hb

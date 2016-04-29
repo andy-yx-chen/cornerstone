@@ -155,6 +155,7 @@
     <ClInclude Include="timer_task.hxx" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="buffer.cxx" />
     <ClCompile Include="peer.cxx" />
     <ClCompile Include="raft_server.cxx" />
     <ClCompile Include="tests\sources" />

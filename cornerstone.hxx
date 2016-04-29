@@ -2,6 +2,7 @@
 #define _CORNERSTONE_HXX_
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <vector>
 #include <list>

@@ -3,5 +3,8 @@
 
 typedef unsigned long long ulong;
 typedef void* any_ptr;
+typedef unsigned char byte;
+typedef unsigned short ushort;
+typedef unsigned int uint;
 
 #endif // _BASIC_TYPES_HXX_

@@ -143,6 +143,9 @@
     <ClCompile Include="raft_server.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="buffer.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

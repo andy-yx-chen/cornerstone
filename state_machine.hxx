@@ -7,6 +7,8 @@ namespace cornerstone {
 
     public:
         virtual void commit(const ulong log_idx, buffer& data) = 0;
+        virtual void pre_commit(const ulong log_idx, buffer& data) = 0;
+        virtual void rollback(const ulong log_idx, buffer& data) = 0;
         virtual void save_snapshot_data(snapshot& s, const ulong offset, buffer& data) = 0;
         virtual bool apply_snapshot(snapshot& s) = 0;
         virtual int read_snapshot_data(snapshot& s, const ulong offset, buffer& data) = 0;
