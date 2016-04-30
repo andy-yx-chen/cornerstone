@@ -17,11 +17,11 @@ namespace cornerstone {
             return this->type_;
         }
 
-        int get_src() const {
+        int32 get_src() const {
             return this->src_;
         }
 
-        int get_dst() const {
+        int32 get_dst() const {
             return this->dst_;
         }
 
@@ -30,8 +30,8 @@ namespace cornerstone {
     private:
         ulong term_;
         msg_type type_;
-        int src_;
-        int dst_;
+        int32 src_;
+        int32 dst_;
     };
 }
 #endif //_MSG_BASE_HXX_

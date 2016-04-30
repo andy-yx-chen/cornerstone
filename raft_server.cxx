@@ -214,7 +214,7 @@ void raft_server::request_vote() {
     votes_responded_ += 1;
 
     // is this the only server?
-    if (votes_granted_ > (int)(peers_.size() + 1) / 2) {
+    if (votes_granted_ > (int32)(peers_.size() + 1) / 2) {
         election_completed_ = true;
         become_leader();
         return;
@@ -386,11 +386,11 @@ void raft_server::handle_voting_resp(resp_msg& resp) {
         votes_granted_ += 1;
     }
 
-    if (votes_responded_ >= (int)(peers_.size() + 1)) {
+    if (votes_responded_ >= (int32)(peers_.size() + 1)) {
         election_completed_ = true;
     }
 
-    if (votes_granted_ > (int)((peers_.size() + 1) / 2)) {
+    if (votes_granted_ > (int32)((peers_.size() + 1) / 2)) {
         l_.info(sstrfmt("Server is elected as leader for term %llu").fmt(state_->get_term()));
         election_completed_ = true;
         become_leader();
@@ -664,7 +664,7 @@ void raft_server::reconfigure(const std::shared_ptr<cluster_config>& new_config)
         .fmt(new_config->get_servers().size(), new_config->get_prev_log_idx(), new_config->get_log_idx()));
 
     // we only allow one server to be added or removed at a time
-    int srv_removed = -1;
+    int32 srv_removed = -1;
     srv_config* srv_added = nilptr;
     std::list<srv_config*>& new_srvs(new_config->get_servers());
     for (std::list<srv_config*>::const_iterator it = new_srvs.begin(); it != new_srvs.end(); ++it) {
@@ -959,7 +959,7 @@ resp_msg* raft_server::handle_rm_srv_req(req_msg& req) {
         return resp;
     }
 
-    int srv_id = entries[0]->get_buf().get_int();
+    int32 srv_id = entries[0]->get_buf().get_int();
     if (srv_id == id_) {
         l_.info("cannot request to remove leader");
         return resp;
@@ -1033,7 +1033,7 @@ resp_msg* raft_server::handle_log_sync_req(req_msg& req) {
 
 void raft_server::sync_log_to_new_srv(ulong start_idx) {
     // only sync committed logs
-    int gap = (int)(state_->get_commit_idx() - start_idx);
+    int32 gap = (int32)(state_->get_commit_idx() - start_idx);
     if (gap < ctx_->params_->log_sync_stop_gap_) {
         l_.info(lstrfmt("LogSync is done for server %d with log gap %d, now put the server into cluster").fmt(srv_to_join_->get_id(), gap));
         cluster_config* new_conf = new cluster_config(log_store_->next_slot(), config_->get_log_idx());
@@ -1054,7 +1054,7 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
         req = create_sync_snapshot_req(*srv_to_join_, start_idx, state_->get_term(), state_->get_commit_idx());
     }
     else {
-        int size_to_sync = std::min(gap, ctx_->params_->log_sync_batch_size_);
+        int32 size_to_sync = std::min(gap, ctx_->params_->log_sync_batch_size_);
         buffer* log_pack = log_store_->pack(start_idx, size_to_sync);
         req = new req_msg(state_->get_term(), msg_type::sync_log_request, id_, srv_to_join_->get_id(), 0L, start_idx - 1, state_->get_commit_idx());
         req->log_entries().push_back(new log_entry(state_->get_term(), log_pack, log_val_type::log_pack));
@@ -1101,7 +1101,7 @@ resp_msg* raft_server::handle_leave_cluster_req(req_msg& req) {
     return resp;
 }
 
-void raft_server::rm_srv_from_cluster(int srv_id) {
+void raft_server::rm_srv_from_cluster(int32 srv_id) {
     peer_itor it = peers_.find(srv_id);
     if (it == peers_.end()) {
         return;
@@ -1124,8 +1124,8 @@ void raft_server::rm_srv_from_cluster(int srv_id) {
     request_append_entries();
 }
 
-int raft_server::get_snapshot_sync_block_size() const {
-    int block_size = ctx_->params_->snapshot_block_size_;
+int32 raft_server::get_snapshot_sync_block_size() const {
+    int32 block_size = ctx_->params_->snapshot_block_size_;
     return block_size == 0 ? default_snapshot_sync_block_size : block_size;
 }
 
@@ -1155,10 +1155,10 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
     }
 
     ulong offset = p.get_snapshot_sync_ctx()->get_offset();
-    int sz_left = (int)(snp->size() - offset);
-    int blk_sz = get_snapshot_sync_block_size();
+    int32 sz_left = (int32)(snp->size() - offset);
+    int32 blk_sz = get_snapshot_sync_block_size();
     buffer* data = buffer::alloc((size_t)(std::min(blk_sz, sz_left)));
-    int sz_rd = state_machine_.read_snapshot_data(*snp, offset, *data);
+    int32 sz_rd = state_machine_.read_snapshot_data(*snp, offset, *data);
     if ((size_t)sz_rd < data->size()) {
         l_.err(lstrfmt("only %d bytes could be read from snapshot while %d bytes are expected, must be something wrong, exit.").fmt(sz_rd, data->size()));
         ::exit(-1);

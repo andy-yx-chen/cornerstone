@@ -13,7 +13,7 @@ namespace cornerstone {
             log_sync_stop_gap_(10),
             snapshot_distance_(0),
             snapshot_block_size_(0) {}
-        raft_params(int et_upper, int et_lower, int hb_interval, int backoff, int sync_batch, int sync_gap, int snapshot_dist, int snapshot_block)
+        raft_params(int32 et_upper, int32 et_lower, int32 hb_interval, int32 backoff, int32 sync_batch, int32 sync_gap, int32 snapshot_dist, int32 snapshot_block)
             : election_timeout_upper_bound_(et_upper),
             election_timeout_lower_bound_(et_lower),
             heart_beat_interval_(hb_interval),
@@ -29,14 +29,14 @@ namespace cornerstone {
             return std::max(heart_beat_interval_, election_timeout_lower_bound_ - (heart_beat_interval_ / 2));
         }
     public:
-        int election_timeout_upper_bound_;
-        int election_timeout_lower_bound_;
-        int heart_beat_interval_;
-        int rpc_failure_backoff_;
-        int log_sync_batch_size_;
-        int log_sync_stop_gap_;
-        int snapshot_distance_;
-        int snapshot_block_size_;
+        int32 election_timeout_upper_bound_;
+        int32 election_timeout_lower_bound_;
+        int32 heart_beat_interval_;
+        int32 rpc_failure_backoff_;
+        int32 log_sync_batch_size_;
+        int32 log_sync_stop_gap_;
+        int32 snapshot_distance_;
+        int32 snapshot_block_size_;
     };
 }
 

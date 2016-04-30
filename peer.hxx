@@ -25,7 +25,7 @@ namespace cornerstone {
     __nocopy__(peer)
     
     public:
-        int get_id() const {
+        int32 get_id() const {
             return config_.get_id();
         }
 
@@ -41,7 +41,7 @@ namespace cornerstone {
             return lock_;
         }
 
-        int get_current_hb_interval() const {
+        int32 get_current_hb_interval() const {
             return current_hb_interval_;
         }
 
@@ -118,10 +118,10 @@ namespace cornerstone {
     private:
         const srv_config& config_;
         std::unique_ptr<rpc_client> rpc_;
-        int current_hb_interval_;
-        int hb_interval_;
-        int rpc_backoff_;
-        int max_hb_interval_;
+        int32 current_hb_interval_;
+        int32 hb_interval_;
+        int32 rpc_backoff_;
+        int32 max_hb_interval_;
         ulong next_log_idx_;
         ulong matched_idx_;
         std::atomic_bool busy_flag_;

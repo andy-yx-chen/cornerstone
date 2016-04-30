@@ -10,14 +10,14 @@ namespace cornerstone {
         size_t size() const;
         size_t pos() const;
 
-        int get_int();
+        int32 get_int();
         ulong get_ulong();
         byte get_byte();
         const char* get_str();
         byte* data();
 
         void put(byte b);
-        void put(int val);
+        void put(int32 val);
         void put(ulong val);
         void put(const std::string& str);
     };

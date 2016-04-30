@@ -14,6 +14,6 @@
     virtual ~clazz() {} \
     __nocopy__(clazz)
 
-#define sz_int sizeof(int)
+#define sz_int sizeof(int32)
 #define sz_ulong sizeof(ulong)
 #endif //_PP_UTIL_HXX_

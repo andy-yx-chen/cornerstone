@@ -4,7 +4,7 @@
 namespace cornerstone {
     class srv_config {
     public:
-        srv_config(int id, const std::string& endpoint)
+        srv_config(int32 id, const std::string& endpoint)
             : id_(id), endpoint_(endpoint) {}
 
         __nocopy__(srv_config)
@@ -12,7 +12,7 @@ namespace cornerstone {
     public:
         static srv_config* deserialize(buffer& buf);
 
-        int get_id() const {
+        int32 get_id() const {
             return id_;
         }
 
@@ -22,7 +22,7 @@ namespace cornerstone {
 
         buffer* serialize();
     private:
-        int id_;
+        int32 id_;
         std::string endpoint_;
     };
 }
