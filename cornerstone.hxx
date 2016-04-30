@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <random>
+#include <cinttypes>
 
 #include "pp_util.hxx"
 #include "strfmt.hxx"

@@ -1,10 +1,10 @@
 #ifndef _BASIC_TYPES_HXX_
 #define _BASIC_TYPES_HXX_
 
-typedef unsigned long long ulong;
+typedef uint64_t ulong;
 typedef void* any_ptr;
 typedef unsigned char byte;
-typedef unsigned short ushort;
-typedef unsigned int uint;
+typedef uint16_t ushort;
+typedef uint32_t uint;
 
 #endif // _BASIC_TYPES_HXX_
