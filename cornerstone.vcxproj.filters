@@ -146,6 +146,9 @@
     <ClCompile Include="buffer.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_buffer.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

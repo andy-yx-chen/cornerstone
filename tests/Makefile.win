@@ -75,12 +75,12 @@ TARGETPATH=$(TARGETPATH)\$(CPU)
 !endif
 
 !if ![-echo OBJS=\>>"$(TARGETPATH)\m_objs"]
-!	if ![-for %i in ($(SOURCES)) do (echo %~ni.obj\>>"$(TARGETPATH)\m_objs")]
+!	if ![-for %i in ($(SOURCES)) do (echo %~dpni.obj\>>"$(TARGETPATH)\m_objs")]
 !		include "$(TARGETPATH)\m_objs"
 !	endif
 !endif
 
-!if ![-for %i in ($(SOURCES)) do (echo %~ni.obj:%i >> "$(TARGETPATH)\m_src")]
+!if ![-for %i in ($(SOURCES)) do (echo %~dpni.obj:%i >> "$(TARGETPATH)\m_src")]
 !	include "$(TARGETPATH)\m_src"
 !endif
 
@@ -135,8 +135,7 @@ all:$(_TARGETNAME)
 
 $(_TARGETNAME):$(OBJS)
 	$(link) $(LINKFLAGS) /out:"$(_TARGETNAME)" /pdb:"$(TARGETPATH)\$(TARGETPDB)" $(USE_LIBS) $**
-	@copy /Y *.obj "$(TARGETPATH)\"
-	@del /Q *.obj
+	@for %i in ($(SOURCES)) do (move /Y %~dpni.obj "$(TARGETPATH)\%~ni.obj")
 	@copy /Y *.pdb "$(TARGETPATH)\"
 	@del /Q *.pdb
 	@copy /Y *.ilk "$(TARGETPATH)\"
@@ -144,13 +143,13 @@ $(_TARGETNAME):$(OBJS)
 	@copy /Y $(_TARGETNAME) "$(TARGETPATH)\$(_TARGETNAME)"
 	@del /Q $(_TARGETNAME)
 .c.obj:
-	$(cc) /c $(cflags) $<
+	$(cc) /c $(cflags) /Fo$@ $<
 
 .cpp.obj:
-	$(cc) /c $(cflags) /EHac $<
+	$(cc) /c $(cflags) /Fo$@ /EHac $<
 
 .cxx.obj:
-	$(cc) /c $(cflags) /EHac $<
+	$(cc) /c $(cflags) /Fo$@ /EHac $<
 
 clean:
 	@rd /s /q "$(BIN_DIR)"

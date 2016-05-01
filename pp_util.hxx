@@ -16,4 +16,5 @@
 
 #define sz_int sizeof(int32)
 #define sz_ulong sizeof(ulong)
+#define sz_byte sizeof(byte)
 #endif //_PP_UTIL_HXX_

@@ -160,6 +160,7 @@
     <ClCompile Include="raft_server.cxx" />
     <ClCompile Include="tests\sources" />
     <ClCompile Include="tests\test_async_result.cxx" />
+    <ClCompile Include="tests\test_buffer.cxx" />
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_strfmt.cxx" />
   </ItemGroup>
