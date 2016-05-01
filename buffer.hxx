@@ -9,7 +9,7 @@ namespace cornerstone {
 
         size_t size() const;
         size_t pos() const;
-		void pos(size_t p);
+        void pos(size_t p);
 
         int32 get_int();
         ulong get_ulong();

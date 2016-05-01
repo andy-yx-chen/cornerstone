@@ -5,7 +5,7 @@ LIBS=$(lib)
 
 #Include the sources
 !if exists ("sources")
-!	include "sources"
+!    include "sources"
 !endif
 
 #Default values for reserved Marcos
@@ -26,11 +26,11 @@ USE_UNICODE=YES
 
 #UMENTRY, default to wmain
 !if !DEFINED(UMENTRY) || "$(UMENTRY)" == ""
-!	if "$(USE_UNICODE)" == "YES"
+!    if "$(USE_UNICODE)" == "YES"
 UMENTRY=wmain
-!	else
+!    else
 UMENTRY=main
-!	endif
+!    endif
 !endif
 
 #TARGETNAME, we don't allow TARGETNAME is undefined or is null
@@ -65,37 +65,37 @@ TARGETPATH=$(TARGETPATH)\$(CPU)
 
 #generate directories
 !if !EXIST("$(TARGETPATH)")
-!	if ![-mkdir "$(TARGETPATH)"]
-!	endif
+!    if ![-mkdir "$(TARGETPATH)"]
+!    endif
 !endif
 #create objs list file
 !if EXIST("$(TARGETPATH)\m_objs")
-!	if [del "$(TARGETPATH)\m_objs"]
-!	endif
+!    if [del "$(TARGETPATH)\m_objs"]
+!    endif
 !endif
 
 !if ![-echo OBJS=\>>"$(TARGETPATH)\m_objs"]
-!	if ![-for %i in ($(SOURCES)) do (echo %~dpni.obj\>>"$(TARGETPATH)\m_objs")]
-!		include "$(TARGETPATH)\m_objs"
-!	endif
+!    if ![-for %i in ($(SOURCES)) do (echo %~dpni.obj\>>"$(TARGETPATH)\m_objs")]
+!        include "$(TARGETPATH)\m_objs"
+!    endif
 !endif
 
 !if ![-for %i in ($(SOURCES)) do (echo %~dpni.obj:%i >> "$(TARGETPATH)\m_src")]
-!	include "$(TARGETPATH)\m_src"
+!    include "$(TARGETPATH)\m_src"
 !endif
 
 !if "$(USE_MSVCRT)" == "NO"
-!	ifdef DEBUG
+!    ifdef DEBUG
 cflags=$(cflags) /MTd
-!	else
+!    else
 cflags=$(cflags) /MT
-!	endif
+!    endif
 !else
-!	ifdef DEBUG
+!    ifdef DEBUG
 cflags=$(cflags) /MDd
-!	else
+!    else
 cflags=$(cflags) /MD
-!	endif
+!    endif
 !endif
 
 TARGETPDB=$(TARGETNAME).pdb
@@ -134,25 +134,25 @@ LINKFLAGS=$(LINKFLAGS) /LIBPATH:"$(LIBS)"
 all:$(_TARGETNAME)
 
 $(_TARGETNAME):$(OBJS)
-	$(link) $(LINKFLAGS) /out:"$(_TARGETNAME)" /pdb:"$(TARGETPATH)\$(TARGETPDB)" $(USE_LIBS) $**
-	@for %i in ($(SOURCES)) do (move /Y %~dpni.obj "$(TARGETPATH)\%~ni.obj")
-	@copy /Y *.pdb "$(TARGETPATH)\"
-	@del /Q *.pdb
-	@copy /Y *.ilk "$(TARGETPATH)\"
-	@del /Q *.ilk
-	@copy /Y $(_TARGETNAME) "$(TARGETPATH)\$(_TARGETNAME)"
-	@del /Q $(_TARGETNAME)
+    $(link) $(LINKFLAGS) /out:"$(_TARGETNAME)" /pdb:"$(TARGETPATH)\$(TARGETPDB)" $(USE_LIBS) $**
+    @for %i in ($(SOURCES)) do (move /Y %~dpni.obj "$(TARGETPATH)\%~ni.obj")
+    @copy /Y *.pdb "$(TARGETPATH)\"
+    @del /Q *.pdb
+    @copy /Y *.ilk "$(TARGETPATH)\"
+    @del /Q *.ilk
+    @copy /Y $(_TARGETNAME) "$(TARGETPATH)\$(_TARGETNAME)"
+    @del /Q $(_TARGETNAME)
 .c.obj:
-	$(cc) /c $(cflags) /Fo$@ $<
+    $(cc) /c $(cflags) /Fo$@ $<
 
 .cpp.obj:
-	$(cc) /c $(cflags) /Fo$@ /EHac $<
+    $(cc) /c $(cflags) /Fo$@ /EHac $<
 
 .cxx.obj:
-	$(cc) /c $(cflags) /Fo$@ /EHac $<
+    $(cc) /c $(cflags) /Fo$@ /EHac $<
 
 clean:
-	@rd /s /q "$(BIN_DIR)"
-	@del *.obj
-	@del *.pdb
-	@echo successfully clean up!
+    @rd /s /q "$(BIN_DIR)"
+    @del *.obj
+    @del *.pdb
+    @echo successfully clean up!

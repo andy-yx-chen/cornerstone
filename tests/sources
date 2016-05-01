@@ -7,5 +7,5 @@ SOURCES=\
     test_async_result.cxx\
     test_runner.cxx\
     test_strfmt.cxx\
-	..\buffer.cxx\
-	test_buffer.cxx
+    ..\buffer.cxx\
+    test_buffer.cxx

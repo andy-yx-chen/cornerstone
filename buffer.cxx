@@ -54,115 +54,115 @@ byte* buffer::data() {
 }
 
 int32 buffer::get_int() {
-	size_t avail = size() - pos();
-	if (avail < sz_int) {
-		throw std::overflow_error("insufficient buffer available for an int32 value");
-	}
+    size_t avail = size() - pos();
+    if (avail < sz_int) {
+        throw std::overflow_error("insufficient buffer available for an int32 value");
+    }
 
-	byte* d = data();
-	int32 val = 0;
-	for (int i = 0; i < sz_int; ++i) {
-		int32 byte_val = (int32)*(d + i);
-		val += (byte_val << (i * 8));
-	}
+    byte* d = data();
+    int32 val = 0;
+    for (int i = 0; i < sz_int; ++i) {
+        int32 byte_val = (int32)*(d + i);
+        val += (byte_val << (i * 8));
+    }
 
-	__mv_fw_block(this, sz_int);
-	return val;
+    __mv_fw_block(this, sz_int);
+    return val;
 }
 
 ulong buffer::get_ulong() {
-	size_t avail = size() - pos();
-	if (avail < sz_ulong) {
-		throw std::overflow_error("insufficient buffer available for an ulong value");
-	}
+    size_t avail = size() - pos();
+    if (avail < sz_ulong) {
+        throw std::overflow_error("insufficient buffer available for an ulong value");
+    }
 
-	byte* d = data();
-	ulong val = 0L;
-	for (int i = 0; i < sz_ulong; ++i) {
-		ulong byte_val = (ulong)*(d + i);
-		val += (byte_val << (i * 8));
-	}
+    byte* d = data();
+    ulong val = 0L;
+    for (int i = 0; i < sz_ulong; ++i) {
+        ulong byte_val = (ulong)*(d + i);
+        val += (byte_val << (i * 8));
+    }
 
-	__mv_fw_block(this, sz_ulong);
-	return val;
+    __mv_fw_block(this, sz_ulong);
+    return val;
 }
 
 byte buffer::get_byte() {
-	size_t avail = size() - pos();
-	if (avail < sz_byte) {
-		throw std::overflow_error("insufficient buffer available for a byte");
-	}
+    size_t avail = size() - pos();
+    if (avail < sz_byte) {
+        throw std::overflow_error("insufficient buffer available for a byte");
+    }
 
-	byte val = *data();
-	__mv_fw_block(this, sz_byte);
-	return val;
+    byte val = *data();
+    __mv_fw_block(this, sz_byte);
+    return val;
 }
 
 void buffer::pos(size_t p) {
-	size_t position = p > size() ? size() : p;
-	__set_block_pos(this, position);
+    size_t position = p > size() ? size() : p;
+    __set_block_pos(this, position);
 }
 
 const char* buffer::get_str() {
-	size_t p = pos();
-	size_t s = size();
-	size_t i = 0;
-	byte* d = data();
-	while ((p + i) < s && *(d + i)) ++i;
-	if (p + i >= s || i == 0) {
-		return nilptr;
-	}
+    size_t p = pos();
+    size_t s = size();
+    size_t i = 0;
+    byte* d = data();
+    while ((p + i) < s && *(d + i)) ++i;
+    if (p + i >= s || i == 0) {
+        return nilptr;
+    }
 
-	__mv_fw_block(this, i + 1);
-	return reinterpret_cast<const char*>(d);
+    __mv_fw_block(this, i + 1);
+    return reinterpret_cast<const char*>(d);
 }
 
 void buffer::put(byte b) {
-	if (size() - pos() < sz_byte) {
-		throw std::overflow_error("insufficient buffer to store byte");
-	}
+    if (size() - pos() < sz_byte) {
+        throw std::overflow_error("insufficient buffer to store byte");
+    }
 
-	byte* d = data();
-	*d = b;
-	__mv_fw_block(this, sz_byte);
+    byte* d = data();
+    *d = b;
+    __mv_fw_block(this, sz_byte);
 }
 
 void buffer::put(int32 val) {
-	if (size() - pos() < sz_int) {
-		throw std::overflow_error("insufficient buffer to store int32");
-	}
+    if (size() - pos() < sz_int) {
+        throw std::overflow_error("insufficient buffer to store int32");
+    }
 
-	byte* d = data();
-	for (int i = 0; i < sz_int; ++i) {
-		*(d + i) = (byte)(val >> (i * 8));
-	}
+    byte* d = data();
+    for (int i = 0; i < sz_int; ++i) {
+        *(d + i) = (byte)(val >> (i * 8));
+    }
 
-	__mv_fw_block(this, sz_int);
+    __mv_fw_block(this, sz_int);
 }
 
 void buffer::put(ulong val) {
-	if (size() - pos() < sz_ulong) {
-		throw std::overflow_error("insufficient buffer to store int32");
-	}
+    if (size() - pos() < sz_ulong) {
+        throw std::overflow_error("insufficient buffer to store int32");
+    }
 
-	byte* d = data();
-	for (int i = 0; i < sz_ulong; ++i) {
-		*(d + i) = (byte)(val >> (i * 8));
-	}
+    byte* d = data();
+    for (int i = 0; i < sz_ulong; ++i) {
+        *(d + i) = (byte)(val >> (i * 8));
+    }
 
-	__mv_fw_block(this, sz_ulong);
+    __mv_fw_block(this, sz_ulong);
 }
 
 void buffer::put(const std::string& str) {
-	if (size() - pos() < (str.length() + 1)) {
-		throw std::overflow_error("insufficient buffer to store a string");
-	}
+    if (size() - pos() < (str.length() + 1)) {
+        throw std::overflow_error("insufficient buffer to store a string");
+    }
 
-	byte* d = data();
-	for (size_t i = 0; i < str.length(); ++i) {
-		*(d + i) = (byte)str[i];
-	}
+    byte* d = data();
+    for (size_t i = 0; i < str.length(); ++i) {
+        *(d + i) = (byte)str[i];
+    }
 
-	*(d + str.length() + 1) = (byte)0;
-	__mv_fw_block(this, str.length() + 1);
+    *(d + str.length()) = (byte)0;
+    __mv_fw_block(this, str.length() + 1);
 }
