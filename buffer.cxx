@@ -4,30 +4,30 @@
 #define __init_block(p, s, t) ((t*)(p))[0] = (t)s;\
     ((t*)(p))[1] = 0
 #define __init_s_block(p, s) __init_block(p, s, ushort)
-#define __init_b_block(p, s) __init_block(p, s, size_t);\
-    (p) = (void*)(((ulong)(p)) | 1)
+#define __init_b_block(p, s) __init_block(p, s, uint);\
+    (p) = (void*)((byte*)(p) + 1)
 #define __pos_of_s_block(p) ((ushort*)(p))[1]
-#define __pos_of_b_block(p) ((size_t*)(((ulong)(p)) ^ 1))[1]
-#define __size_of_block(p) (__is_big_block(p)) ? *((size_t*)(((ulong)(p)) ^ 1)) : *((ushort*)(p))
+#define __pos_of_b_block(p) ((uint*)((byte*)(p) - 1))[1]
+#define __size_of_block(p) (__is_big_block(p)) ? *((uint*)((byte*)(p) - 1)) : *((ushort*)(p))
 #define __pos_of_block(p) (__is_big_block(p)) ? __pos_of_b_block(p) : __pos_of_s_block(p)
 #define __mv_fw_block(p, d) if(__is_big_block(p)){\
-    ((size_t*)(((ulong)(p)) ^ 1))[1] += (d);\
+    ((uint*)((byte*)(p) - 1))[1] += (d);\
     }\
     else{\
     ((ushort*)(p))[1] += (ushort)(d);\
     }
 #define __set_block_pos(p, pos) if(__is_big_block(p)){\
-    ((size_t*)(((ulong)(p)) ^ 1))[1] = (pos);\
+    ((uint*)((byte*)(p) - 1))[1] = (pos);\
     }\
     else{\
     ((ushort*)(p))[1] = (ushort)(pos);\
     }
-#define __data_of_block(p) (__is_big_block(p)) ? (byte*) (((byte*)(((size_t*)(((ulong)(p)) ^ 1)) + 2)) + __pos_of_b_block(p)) : (byte*) (((byte*)(((ushort*)p) + 2)) + __pos_of_s_block(p))
+#define __data_of_block(p) (__is_big_block(p)) ? (byte*) (((byte*)(((uint*)((byte*)(p) - 1)) + 2)) + __pos_of_b_block(p)) : (byte*) (((byte*)(((ushort*)p) + 2)) + __pos_of_s_block(p))
 using namespace cornerstone;
 
 buffer* buffer::alloc(const size_t size) {
     if (size > std::numeric_limits<ushort>::max()) {
-        void* ptr = ::malloc(size + sizeof(size_t) * 2);
+        void* ptr = ::malloc(size + sizeof(uint) * 2);
         __init_b_block(ptr, size);
         return (buffer*)ptr;
     }
