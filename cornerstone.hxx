@@ -3,6 +3,8 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cinttypes>
+#include <cstring>
 #include <memory>
 #include <vector>
 #include <list>
@@ -15,7 +17,6 @@
 #include <algorithm>
 #include <unordered_map>
 #include <random>
-#include <cinttypes>
 
 #include "pp_util.hxx"
 #include "strfmt.hxx"

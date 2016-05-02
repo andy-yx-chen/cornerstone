@@ -49,7 +49,7 @@ size_t buffer::pos() const {
     return (size_t)(__pos_of_block(this));
 }
 
-byte* buffer::data() {
+byte* buffer::data() const {
     return __data_of_block(this);
 }
 
@@ -165,4 +165,19 @@ void buffer::put(const std::string& str) {
 
     *(d + str.length()) = (byte)0;
     __mv_fw_block(this, str.length() + 1);
+}
+
+void buffer::put(const buffer& buf) {
+    size_t sz = size();
+    size_t p = pos();
+    size_t src_sz = buf.size();
+    size_t src_p = buf.pos();
+    if ((sz - p) < (src_sz - src_p)) {
+        throw std::overflow_error("insufficient buffer to hold the other buffer");
+    }
+
+    byte* d = data();
+    byte* src = buf.data();
+    ::memcpy(d, src, src_sz - src_p);
+    __mv_fw_block(this, src_sz - src_p);
 }

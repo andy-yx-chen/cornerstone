@@ -149,6 +149,9 @@
     <ClCompile Include="tests\test_buffer.cxx">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
+    <ClCompile Include="cluster_config.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

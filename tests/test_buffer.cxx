@@ -43,6 +43,10 @@ static void do_test(buffer* buf) {
     buf->put("a string");
     byte b1 = (byte)rnd();
     buf->put(b1);
+    buffer::safe_buffer buf1(std::move(buffer::safe_alloc(100)));
+    buf1->put("another string");
+    buf1->pos(0);
+    buf->put(*buf1);
     buf->pos(0);
     for (int i = 0; i < 100; ++i) {
         int32 val = buf->get_int();
@@ -53,5 +57,6 @@ static void do_test(buffer* buf) {
     assert(b == buf->get_byte());
     assert(strcmp("a string", buf->get_str()) == 0);
     assert(b1 == buf->get_byte());
-    assert(buf->pos() == (100 * sz_int + 2 * sz_byte + sz_ulong + strlen("a string") + 1));
+    assert(strcmp("another string", buf->get_str()) == 0);
+    assert(buf->pos() == (100 * sz_int + 2 * sz_byte + sz_ulong + strlen("a string") + 1 + strlen("another string") + 1));
 }
