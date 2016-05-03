@@ -3,7 +3,9 @@
 using namespace cornerstone;
 
 srv_config* srv_config::deserialize(buffer& buf) {
-    return new srv_config(buf.get_int(), buf.get_str());
+    int32 id = buf.get_int();
+    const char* endpoint = buf.get_str();
+    return new srv_config(id, endpoint);
 }
 
 buffer* srv_config::serialize() {

@@ -36,7 +36,7 @@ void test_async_result() {
     }
 
     {
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(1000, 496, nullptr));
+        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
         bool handler_called = false;
         ptr->when_ready((async_result<int>::handler_type)([&handler_called](int val, std::exception* e) -> void {
             assert(496 == val);
@@ -44,18 +44,18 @@ void test_async_result() {
             handler_called = true;
         }));
         assert(496 == ptr->get());
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         assert(handler_called);
     }
 
     {
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(1000, 496, nullptr));
+        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
         assert(496 == ptr->get());
     }
 
     {
         std::exception* ex = new std::bad_exception();
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(1000, 496, ex));
+        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, ex));
         bool handler_called = false;
         ptr->when_ready((async_result<int>::handler_type)([&handler_called,ex](int val, std::exception* e) -> void {
             assert(ex == e);

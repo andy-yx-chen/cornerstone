@@ -17,5 +17,6 @@ buffer* snapshot::serialize() {
     buf->put(last_log_term_);
     buf->put(size_);
     buf->put(*conf_buf);
+    buf->pos(0);
     return buf;
 }

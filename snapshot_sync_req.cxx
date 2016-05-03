@@ -22,10 +22,11 @@ snapshot_sync_req* snapshot_sync_req::deserialize(buffer& buf) {
 
 buffer* snapshot_sync_req::serialize() {
     buffer::safe_buffer sbuf(buffer::make_safe(snapshot_->serialize()));
-    buffer* buf = buffer::alloc(sbuf->size() + sz_ulong + sz_byte + data_->size());
+    buffer* buf = buffer::alloc(sbuf->size() + sz_ulong + sz_byte + (data_->size() - data_->pos()));
     buf->put(*sbuf);
     buf->put(offset_);
     buf->put(done_ ? (byte)1 : (byte)0);
     buf->put(*data_);
+    buf->pos(0);
     return buf;
 }
