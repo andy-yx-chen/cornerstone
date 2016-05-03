@@ -4,14 +4,14 @@
 namespace cornerstone {
     struct snapshot_sync_ctx {
     public:
-        snapshot_sync_ctx(snapshot* s, ulong offset = 0L)
+        snapshot_sync_ctx(const std::shared_ptr<snapshot>& s, ulong offset = 0L)
             : snapshot_(s), offset_(offset) {}
 
     __nocopy__(snapshot_sync_ctx)
     
     public:
-        snapshot& get_snapshot() const {
-            return *snapshot_;
+        const std::shared_ptr<snapshot>& get_snapshot() const {
+            return snapshot_;
         }
 
         ulong get_offset() const {
@@ -22,7 +22,7 @@ namespace cornerstone {
             offset_ = offset;
         }
     public:
-        std::unique_ptr<snapshot> snapshot_;
+        std::shared_ptr<snapshot> snapshot_;
         ulong offset_;
     };
 }

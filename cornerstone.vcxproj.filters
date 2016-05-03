@@ -152,6 +152,15 @@
     <ClCompile Include="cluster_config.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="srv_config.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="snapshot_sync_req.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="snapshot.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

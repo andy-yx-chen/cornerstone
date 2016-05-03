@@ -91,7 +91,7 @@ namespace cornerstone {
             return pending_commit_flag_.compare_exchange_strong(t, false);
         }
 
-        void set_snapshot_in_sync(snapshot* s) {
+        void set_snapshot_in_sync(const std::shared_ptr<snapshot>& s) {
             if (s == nilptr) {
                 snp_sync_ctx_.reset();
             }

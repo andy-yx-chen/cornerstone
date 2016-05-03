@@ -10,10 +10,12 @@
 __decl_test__(async_result);
 __decl_test__(strfmt);
 __decl_test__(buffer);
+__decl_test__(serialization);
 
 int main() {
     __run_test__(async_result);
     __run_test__(strfmt);
     __run_test__(buffer);
+    __run_test__(serialization);
     return 0;
 }

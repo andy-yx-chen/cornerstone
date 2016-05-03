@@ -14,25 +14,21 @@ buffer* cluster_config::serialize() {
     buffer* result = buffer::alloc(sz);
     result->put(log_idx_);
     result->put(prev_log_idx_);
-    for (int i = 0; i < srv_buffs.size(); ++i) {
+    for (size_t i = 0; i < srv_buffs.size(); ++i) {
         result->put(*srv_buffs[i]);
     }
 
+    result->pos(0);
     return result;
 }
 
 cluster_config* cluster_config::deserialize(buffer& buf) {
-    try {
-        ulong log_idx = buf.get_ulong();
-        ulong prev_log_idx = buf.get_ulong();
-        cluster_config* conf = new cluster_config(log_idx, prev_log_idx);
-        while (buf.pos() < buf.size()) {
-            conf->get_servers().push_back(srv_config::deserialize(buf));
-        }
+    ulong log_idx = buf.get_ulong();
+    ulong prev_log_idx = buf.get_ulong();
+    cluster_config* conf = new cluster_config(log_idx, prev_log_idx);
+    while (buf.pos() < buf.size()) {
+        conf->get_servers().push_back(srv_config::deserialize(buf));
+    }
 
-        return conf;
-    }
-    catch (std::overflow_error& err) {
-        return nilptr;
-    }
+    return conf;
 }

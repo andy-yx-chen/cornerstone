@@ -8,4 +8,9 @@ SOURCES=\
     test_runner.cxx\
     test_strfmt.cxx\
     ..\buffer.cxx\
-    test_buffer.cxx
+	..\snapshot.cxx\
+	..\snapshot_sync_req.cxx\
+	..\srv_config.cxx\
+	..\cluster_config.cxx\
+    test_buffer.cxx\
+	test_serialization.cxx

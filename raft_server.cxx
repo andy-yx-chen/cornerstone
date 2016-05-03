@@ -349,10 +349,10 @@ void raft_server::handle_install_snapshot_resp(resp_msg& resp) {
             need_to_catchup = false;
         }
         else {
-            if (resp.get_next_idx() >= sync_ctx->get_snapshot().size()) {
+            if (resp.get_next_idx() >= sync_ctx->get_snapshot()->size()) {
                 l_.debug("snapshot sync is done");
-                p->set_next_log_idx(sync_ctx->get_snapshot().get_last_log_idx() + 1);
-                p->set_matched_idx(sync_ctx->get_snapshot().get_last_log_idx());
+                p->set_next_log_idx(sync_ctx->get_snapshot()->get_last_log_idx() + 1);
+                p->set_matched_idx(sync_ctx->get_snapshot()->get_last_log_idx());
                 p->set_snapshot_in_sync(nilptr);
                 need_to_catchup = p->clear_pending_commit() || resp.get_next_idx() < log_store_->next_slot();
             }
@@ -871,12 +871,12 @@ void raft_server::handle_ext_resp(resp_msg* presp, rpc_exception* perr) {
                 return;
             }
 
-            if (resp->get_next_idx() >= sync_ctx->get_snapshot().size()) {
+            if (resp->get_next_idx() >= sync_ctx->get_snapshot()->size()) {
                 // snapshot is done
                 l_.debug("snapshot has been copied and applied to new server, continue to sync logs after snapshot");
                 srv_to_join_->set_snapshot_in_sync(nilptr);
-                srv_to_join_->set_next_log_idx(sync_ctx->get_snapshot().get_last_log_idx() + 1);
-                srv_to_join_->set_matched_idx(sync_ctx->get_snapshot().get_last_log_idx());
+                srv_to_join_->set_next_log_idx(sync_ctx->get_snapshot()->get_last_log_idx() + 1);
+                srv_to_join_->set_matched_idx(sync_ctx->get_snapshot()->get_last_log_idx());
             }
             else {
                 sync_ctx->set_offset(resp->get_next_idx());
@@ -1132,10 +1132,14 @@ int32 raft_server::get_snapshot_sync_block_size() const {
 req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx) {
     std::lock_guard<std::mutex> guard(p.get_lock());
     snapshot_sync_ctx* sync_ctx = p.get_snapshot_sync_ctx();
-    snapshot* snp = sync_ctx == nilptr ? nilptr : &sync_ctx->get_snapshot();
+    std::shared_ptr<snapshot> snp;
+    if (sync_ctx != nilptr) {
+        snp = sync_ctx->get_snapshot();
+    }
+
     std::unique_ptr<snapshot> last_snp(state_machine_.last_snapshot());
-    if (snp == nilptr || (last_snp && last_snp->get_last_log_idx() > snp->get_last_log_idx())) {
-        snp = last_snp.release();
+    if (!snp || (last_snp && last_snp->get_last_log_idx() > snp->get_last_log_idx())) {
+        snp.reset(last_snp.release());
         if (snp == nilptr || last_log_idx > snp->get_last_log_idx()) {
             l_.err(
                 lstrfmt("system is running into fatal errors, failed to find a snapshot for peer %d(snapshot null: %d, snapshot doesn't contais lastLogIndex: %d")
@@ -1165,7 +1169,7 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
         return nilptr;
     }
 
-    std::unique_ptr<snapshot_sync_req> sync_req(new snapshot_sync_req(*snp, offset, data, (offset + (ulong)data->size()) >= snp->size()));
+    std::unique_ptr<snapshot_sync_req> sync_req(new snapshot_sync_req(snp, offset, data, (offset + (ulong)data->size()) >= snp->size()));
     req_msg* req = new req_msg(term, msg_type::install_snapshot_request, id_, p.get_id(), snp->get_last_log_term(), snp->get_last_log_idx(), commit_idx);
     req->log_entries().push_back(new log_entry(term, sync_req->serialize(), log_val_type::snp_sync_req));
     return req;

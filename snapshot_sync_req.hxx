@@ -4,7 +4,7 @@
 namespace cornerstone {
     class snapshot_sync_req {
     public:
-        snapshot_sync_req(snapshot& s, ulong offset, buffer* buf, bool done)
+        snapshot_sync_req(const std::shared_ptr<snapshot>& s, ulong offset, buffer* buf, bool done)
             : snapshot_(s), offset_(offset), data_(buf), done_(done) {}
 
         ~snapshot_sync_req() {
@@ -16,7 +16,7 @@ namespace cornerstone {
         static snapshot_sync_req* deserialize(buffer& buf);
 
         snapshot& get_snapshot() const {
-            return snapshot_;
+            return *snapshot_;
         }
 
         ulong get_offset() const { return offset_; }
@@ -27,7 +27,7 @@ namespace cornerstone {
 
         buffer* serialize();
     private:
-        snapshot& snapshot_;
+        std::shared_ptr<snapshot> snapshot_;
         ulong offset_;
         buffer* data_;
         bool done_;

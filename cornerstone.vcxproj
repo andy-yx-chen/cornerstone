@@ -159,6 +159,9 @@
     <ClCompile Include="cluster_config.cxx" />
     <ClCompile Include="peer.cxx" />
     <ClCompile Include="raft_server.cxx" />
+    <ClCompile Include="snapshot.cxx" />
+    <ClCompile Include="snapshot_sync_req.cxx" />
+    <ClCompile Include="srv_config.cxx" />
     <ClCompile Include="tests\sources" />
     <ClCompile Include="tests\test_async_result.cxx" />
     <ClCompile Include="tests\test_buffer.cxx" />

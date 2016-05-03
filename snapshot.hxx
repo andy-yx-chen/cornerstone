@@ -26,6 +26,10 @@ namespace cornerstone {
             return last_config_;
         }
 
+        static snapshot* deserialize(buffer& buf);
+
+        buffer* serialize();
+
     private:
         ulong last_log_idx_;
         ulong last_log_term_;
