@@ -1,8 +1,8 @@
 CC=c++
 CFLAGS+=-std=c++0x -O0 -Wall
 LFLAGS=-lpthread
-
-OBJS=test_async_result.o test_strfmt.o test_runner.o
+.PATH.cxx	: ../
+OBJS=test_async_result.o test_strfmt.o test_runner.o buffer.o snapshot.o snapshot_sync_req.o srv_config.o cluster_config.o test_buffer.o test_serialization.o
 
 .SUFFIXES	: .o .cxx
 .cxx.o	:
