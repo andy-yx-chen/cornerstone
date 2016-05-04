@@ -161,6 +161,9 @@
     <ClCompile Include="snapshot.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_serialization.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">
