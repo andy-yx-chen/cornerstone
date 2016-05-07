@@ -6,7 +6,11 @@ namespace cornerstone {
     __interface_body__(delayed_task_scheduler)
 
     public:
-        virtual void schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds);
+        virtual void schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds) = 0;
+
+        virtual void cancel(std::shared_ptr<delayed_task>& task) = 0 {
+            task->cancel();
+        }
     };
 }
 

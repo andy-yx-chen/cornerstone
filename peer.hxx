@@ -6,6 +6,7 @@ namespace cornerstone {
     public:
         peer(const srv_config& config, const context& ctx, timer_task<peer&>::executor& hb_exec)
             : config_(config),
+            scheduler_(*(ctx.scheduler_)),
             rpc_(ctx.rpc_cli_factory_->create_client(config.get_endpoint())),
             current_hb_interval_(ctx.params_->heart_beat_interval_),
             hb_interval_(ctx.params_->heart_beat_interval_),
@@ -16,7 +17,6 @@ namespace cornerstone {
             busy_flag_(false),
             pending_commit_flag_(false),
             hb_enabled_(false),
-            hb_exec_(hb_exec),
             hb_task_(new timer_task<peer&>(hb_exec, *this)),
             snp_sync_ctx_(nilptr),
             lock_(){
@@ -61,8 +61,7 @@ namespace cornerstone {
         void enable_hb(bool enable) {
             hb_enabled_ = enable;
             if (!enable) {
-                hb_task_->cancel();
-                hb_task_.reset(new timer_task<peer&>(hb_exec_, *this));
+                scheduler_.cancel(hb_task_);
             }
         }
 
@@ -117,6 +116,7 @@ namespace cornerstone {
         void handle_rpc_result(req_msg* req, rpc_result* pending_result, resp_msg* resp, rpc_exception* err);
     private:
         const srv_config& config_;
+        delayed_task_scheduler& scheduler_;
         std::unique_ptr<rpc_client> rpc_;
         int32 current_hb_interval_;
         int32 hb_interval_;
@@ -127,7 +127,6 @@ namespace cornerstone {
         std::atomic_bool busy_flag_;
         std::atomic_bool pending_commit_flag_;
         bool hb_enabled_;
-        timer_task<peer&>::executor hb_exec_;
         std::shared_ptr<delayed_task> hb_task_;
         std::unique_ptr<snapshot_sync_ctx> snp_sync_ctx_;
         std::mutex lock_;

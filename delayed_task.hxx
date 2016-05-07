@@ -5,7 +5,7 @@ namespace cornerstone {
     class delayed_task {
     public:
         delayed_task()
-            : lock_(), cancelled_(false) {}
+            : lock_(), cancelled_(false), context_(nilptr) {}
         virtual ~delayed_task() {}
 
     __nocopy__(delayed_task)
@@ -22,12 +22,21 @@ namespace cornerstone {
             cancelled_ = true;
         }
 
+        void* get_context() const {
+            return context_;
+        }
+
+        void set_context(void* ctx) {
+            context_ = ctx;
+        }
+
     protected:
         virtual void exec() = 0;
 
     private:
         std::mutex lock_;
         bool cancelled_;
+        void* context_;
     };
 }
 

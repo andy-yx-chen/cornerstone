@@ -425,10 +425,12 @@ void raft_server::restart_election_timer() {
     }
 
     if (election_task_) {
-        election_task_->cancel();
+        scheduler_.cancel(election_task_);
+    }
+    else {
+        election_task_.reset(new timer_task<void>(election_exec_));
     }
 
-    election_task_.reset(new timer_task<void>(election_exec_));
     scheduler_.schedule(election_task_, rand_timeout_());
 }
 
@@ -438,7 +440,7 @@ void raft_server::stop_election_timer() {
         return;
     }
 
-    election_task_->cancel();
+    scheduler_.cancel(election_task_);
     election_task_.reset();
 }
 
