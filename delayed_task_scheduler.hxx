@@ -8,9 +8,13 @@ namespace cornerstone {
     public:
         virtual void schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds) = 0;
 
-        virtual void cancel(std::shared_ptr<delayed_task>& task) = 0 {
+        void cancel(std::shared_ptr<delayed_task>& task) {
+            cancel_impl(task);
             task->cancel();
         }
+
+    private:
+        virtual void cancel_impl(std::shared_ptr<delayed_task>& task) = 0;
     };
 }
 
