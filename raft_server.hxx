@@ -52,7 +52,8 @@ namespace cornerstone {
             std::list<srv_config*>& srvs(config_->get_servers());
             for (cluster_config::srv_itor it = srvs.begin(); it != srvs.end(); ++it) {
                 if ((*it)->get_id() != id_) {
-                    peers_.insert(std::make_pair((*it)->get_id(), new peer(**it, *ctx_, (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1))));
+         	        timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
+                    peers_.insert(std::make_pair((*it)->get_id(), new peer(**it, *ctx_, exec)));
                 }
             }
 
