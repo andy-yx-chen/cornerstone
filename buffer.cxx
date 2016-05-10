@@ -61,7 +61,7 @@ int32 buffer::get_int() {
 
     byte* d = data();
     int32 val = 0;
-    for (int i = 0; i < sz_int; ++i) {
+    for (size_t i = 0; i < sz_int; ++i) {
         int32 byte_val = (int32)*(d + i);
         val += (byte_val << (i * 8));
     }
@@ -78,7 +78,7 @@ ulong buffer::get_ulong() {
 
     byte* d = data();
     ulong val = 0L;
-    for (int i = 0; i < sz_ulong; ++i) {
+    for (size_t i = 0; i < sz_ulong; ++i) {
         ulong byte_val = (ulong)*(d + i);
         val += (byte_val << (i * 8));
     }
@@ -133,7 +133,7 @@ void buffer::put(int32 val) {
     }
 
     byte* d = data();
-    for (int i = 0; i < sz_int; ++i) {
+    for (size_t i = 0; i < sz_int; ++i) {
         *(d + i) = (byte)(val >> (i * 8));
     }
 
@@ -146,7 +146,7 @@ void buffer::put(ulong val) {
     }
 
     byte* d = data();
-    for (int i = 0; i < sz_ulong; ++i) {
+    for (size_t i = 0; i < sz_ulong; ++i) {
         *(d + i) = (byte)(val >> (i * 8));
     }
 

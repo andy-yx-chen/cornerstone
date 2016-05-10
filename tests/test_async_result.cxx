@@ -1,4 +1,5 @@
 #include <utility>
+#include <iostream>
 #include <thread>
 #include <chrono>
 #include <cassert>
@@ -8,8 +9,8 @@ using namespace cornerstone;
 
 typedef async_result<int>::handler_type int_handler;
 
-async_result<int>* create_and_set_async_result(int time_to_sleep, int value, std::exception* err) {
-    async_result<int>* result = new async_result<int>();
+std::shared_ptr<async_result<int>> create_and_set_async_result(int time_to_sleep, int value, std::exception* err) {
+    std::shared_ptr<async_result<int>> result(new async_result<int>());
     if (time_to_sleep <= 0) {
         result->set_result(value, err);
         return result;
@@ -25,8 +26,9 @@ async_result<int>* create_and_set_async_result(int time_to_sleep, int value, std
 }
 
 void test_async_result() {
+    std::cout << "test with sync set" << std::endl;
     {
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(0, 123, nullptr));
+        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(0, 123, nullptr));
         assert(123 == ptr->get());
         bool handler_called = false;
 	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, std::exception* e) -> void {
@@ -39,8 +41,9 @@ void test_async_result() {
         assert(handler_called);
     }
 
+    std::cout << "test with async set and wait" << std::endl;
     {
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
+        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
         bool handler_called = false;
 	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, std::exception* e) -> void {
             assert(496 == val);
@@ -53,14 +56,16 @@ void test_async_result() {
         assert(handler_called);
     }
 
+    std::cout << "test with async set and wait without completion handler" << std::endl;
     {
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
+        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
         assert(496 == ptr->get());
     }
 
+    std::cout << "test with exceptions" << std::endl;
     {
         std::exception* ex = new std::bad_exception();
-        std::unique_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, ex));
+        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, ex));
         bool handler_called = false;
 	    int_handler h = (async_result<int>::handler_type)([&handler_called,ex](int val, std::exception* e) -> void {
             assert(ex == e);
