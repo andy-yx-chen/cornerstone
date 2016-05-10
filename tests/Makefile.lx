@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS+=-Wall -O0 -std=c++0x -g
+CFLAGS+=-Wall -O0 -std=c++0x -g -D_GLIBCXX_USE_NANOSLEEP
 LFLAGS=-pthread 
 
 %.o : %.cxx
@@ -8,7 +8,7 @@ LFLAGS=-pthread
 OBJS=test_async_result.o test_strfmt.o test_runner.o
 
 testr: $(OBJS)
-	$(CC) -o $@ $^ -Wl,--no-as-needed
+	$(CC) -o $@ $^ -Wl,--no-as-needed $(LFLAGS)
 	@-mkdir debug
 	@-mv *.o debug/
 	@-mv $@ debug/
