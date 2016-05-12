@@ -1,0 +1,20 @@
+TARGETNAME=cornerstone
+INCLUDES=
+UMTYPE=lib
+USE_MSVCRT=YES
+USE_UNICODE=NO
+DEBUG=YES
+SOURCES=raft_server.cxx
+
+libuv: libuv/Debug/lib/libuv.lib
+
+libuv/vcbuild.bat:
+	@git clone https://github.com/libuv/libuv.git
+
+libuv/Debug/lib/libuv.lib:libuv/vcbuild.bat
+	@set WindowsSdkDir=
+	@set VCINSTALLDIR=
+	@cd libuv && vcbuild.bat x64 static && cd ..
+
+tests:	libuv
+	@cd tests && nmake -f Makefile.win all && debug\obj\testr.exe && cd ..
