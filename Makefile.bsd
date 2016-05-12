@@ -1,14 +1,16 @@
-CC=g++
-CFLAGS+=-Wall -O0 -std=c++0x -g
-LFLAGS=-pthread
+CC=c++
+CFLAGS+=-std=c++0x -O0 -Wall
+LFLAGS=-lpthread
+.PATH.o		: debug/
 
-%.o : %.cxx
-	$(CC) $(CFLAGS) -c -o $@ $<
+.SUFFIXES	: .o .cxx
+.cxx.o	:
+	$(CC) $(CFLAGS) -c $(.IMPSRC)
 
 libuv/out/Debug/libuv.a:
 	@if [ ! -d "libuv" ]; then git clone https://github.com/libuv/libuv.git ; fi;
 	@if [ ! -d "libuv/build/gyp" ]; then cd libuv && git clone https://chromium.googlesource.com/external/gyp.git build/gyp && cd .. ; fi;
-	@cd libuv && python gyp_uv.py -f make && make -C out
+	@cd libuv && python gyp_uv.py -f make && gmake -C out
 
 test:	libuv/out/Debug/libuv.a
-	@cd tests && make -f Makefile.lx testr && ./debug/testr
+	@cd tests && make -f Makefile.bsd testr && ./debug/testr
