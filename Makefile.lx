@@ -1,0 +1,14 @@
+CC=g++
+CFLAGS+=-Wall -O0 -std=c++0x -g
+LFLAGS=-pthread
+
+%.o : %.cxx
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+libuv:
+	@if [ ! -d "libuv" ]; then git clone https://github.com/libuv/libuv.git ; fi;
+	@if [ ! -d "libuv/build/gyp" ]; then cd libuv && git clone https://chromium.googlesource.com/external/gyp.git build/gyp && cd .. ; fi;
+	@cd libuv && python gyp_uv.py -f make && make -C out
+
+test:	libuv
+	@cd tests && make -f Makefile.lx testr && ./debug/testr
