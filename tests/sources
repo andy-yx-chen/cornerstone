@@ -3,6 +3,7 @@ UMTYPE=console
 USE_MSVCRT=YES
 USE_UNICODE=NO
 DEBUG=YES
+INCLUDES=../libuv/include
 SOURCES=\
     test_async_result.cxx\
     test_runner.cxx\

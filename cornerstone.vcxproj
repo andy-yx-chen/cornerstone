@@ -68,7 +68,10 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);libuv\include</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;libuv\Debug\lib</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -153,6 +156,7 @@
     <ClInclude Include="state_mgr.hxx" />
     <ClInclude Include="strfmt.hxx" />
     <ClInclude Include="timer_task.hxx" />
+    <ClInclude Include="uv_delayed_task_scheduler.hxx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="buffer.cxx" />
@@ -168,6 +172,7 @@
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_serialization.cxx" />
     <ClCompile Include="tests\test_strfmt.cxx" />
+    <ClCompile Include="uv_delayed_task_scheduler.cxx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win" />

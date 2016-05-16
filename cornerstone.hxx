@@ -17,6 +17,16 @@
 #include <algorithm>
 #include <unordered_map>
 #include <random>
+#include <uv.h>
+
+// uv defines max and min as marcos
+#ifdef max
+#undef max
+#endif
+
+#ifdef min
+#undef min
+#endif
 
 #include "pp_util.hxx"
 #include "strfmt.hxx"
@@ -52,4 +62,5 @@
 #include "snapshot_sync_req.hxx"
 #include "peer.hxx"
 #include "raft_server.hxx"
+#include "uv_delayed_task_scheduler.hxx"
 #endif // _CORNERSTONE_HXX_

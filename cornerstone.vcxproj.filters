@@ -123,6 +123,9 @@
     <ClInclude Include="strfmt.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="uv_delayed_task_scheduler.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tests\test_async_result.cxx">
@@ -163,6 +166,9 @@
     </ClCompile>
     <ClCompile Include="tests\test_serialization.cxx">
       <Filter>Source Files\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="uv_delayed_task_scheduler.cxx">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
