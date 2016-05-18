@@ -1,5 +1,5 @@
 CC=c++
-CFLAGS+=-std=c++0x -O0 -Wall
+CFLAGS+=-std=c++0x -O0 -Wall -I../asio/asio/include/
 LFLAGS=-lpthread
 .PATH.cxx	: ../
 .PATH.o		: debug/
