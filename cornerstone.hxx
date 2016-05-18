@@ -1,6 +1,8 @@
 #ifndef _CORNERSTONE_HXX_
 #define _CORNERSTONE_HXX_
 
+#define ASIO_STANDALONE 1
+
 #include <cstdio>
 #include <cstdlib>
 #include <cinttypes>
@@ -17,7 +19,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <random>
-#include <uv.h>
+#include <asio.hpp>
 
 // uv defines max and min as marcos
 #ifdef max
@@ -62,5 +64,4 @@
 #include "snapshot_sync_req.hxx"
 #include "peer.hxx"
 #include "raft_server.hxx"
-#include "uv_delayed_task_scheduler.hxx"
 #endif // _CORNERSTONE_HXX_

@@ -172,6 +172,7 @@
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_serialization.cxx" />
     <ClCompile Include="tests\test_strfmt.cxx" />
+    <ClCompile Include="tests\test_timer.cxx" />
     <ClCompile Include="uv_delayed_task_scheduler.cxx" />
   </ItemGroup>
   <ItemGroup>

@@ -7,10 +7,8 @@ LFLAGS=-lpthread
 .cxx.o	:
 	$(CC) $(CFLAGS) -c $(.IMPSRC)
 
-libuv/out/Debug/libuv.a:
-	@if [ ! -d "libuv" ]; then git clone https://github.com/libuv/libuv.git ; fi;
-	@if [ ! -d "libuv/build/gyp" ]; then cd libuv && git clone https://chromium.googlesource.com/external/gyp.git build/gyp && cd .. ; fi;
-	@cd libuv && python gyp_uv.py -f make && gmake -C out
+asio/asio/include/asio.hpp:
+	@if [ ! -d "asio" ]; then git clone https://github.com/andy-yx-chen/asio.git ; fi;
 
-test:	libuv/out/Debug/libuv.a
+test:	asio/asio/include/asio.hpp
 	@cd tests && make -f Makefile.bsd testr && ./debug/testr

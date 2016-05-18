@@ -1,20 +1,15 @@
 TARGETNAME=cornerstone
-INCLUDES=libuv/include
+INCLUDES=asio/asio/include
 UMTYPE=lib
 USE_MSVCRT=YES
 USE_UNICODE=NO
 DEBUG=YES
 SOURCES=raft_server.cxx
 
-libuv: libuv/Debug/lib/libuv.lib
+asio: asio/asio/include/asio.hpp
 
-libuv/vcbuild.bat:
-	@git clone https://github.com/libuv/libuv.git
+asio/asio/include/asio.hpp:
+	@git clone https://github.com/andy-yx-chen/asio.git
 
-libuv/Debug/lib/libuv.lib:libuv/vcbuild.bat
-	@set WindowsSdkDir=
-	@set VCINSTALLDIR=
-	@cd libuv && vcbuild.bat x64 static && cd ..
-
-tests:	libuv
+tests:	asio
 	@cd tests && nmake -f Makefile.win all && debug\obj\testr.exe && cd ..

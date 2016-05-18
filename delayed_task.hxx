@@ -5,8 +5,14 @@ namespace cornerstone {
     class delayed_task {
     public:
         delayed_task()
-            : lock_(), cancelled_(false), context_(nilptr) {}
-        virtual ~delayed_task() {}
+            : lock_(), cancelled_(false), impl_ctx_(nilptr), impl_ctx_del_() {}
+        virtual ~delayed_task() {
+            if (impl_ctx_ != nilptr) {
+                if (impl_ctx_del_) {
+                    impl_ctx_del_(impl_ctx_);
+                }
+            }
+        }
 
     __nocopy__(delayed_task)
     public:
@@ -22,12 +28,17 @@ namespace cornerstone {
             cancelled_ = true;
         }
 
-        void* get_context() const {
-            return context_;
+        void* get_impl_context() const {
+            return impl_ctx_;
         }
 
-        void set_context(void* ctx) {
-            context_ = ctx;
+        void set_impl_context(void* ctx, std::function<void(void*)> del) {
+            impl_ctx_ = ctx;
+            impl_ctx_del_ = del;
+        }
+
+        std::mutex& task_lock() {
+            return lock_;
         }
 
     protected:
@@ -36,7 +47,8 @@ namespace cornerstone {
     private:
         std::mutex lock_;
         bool cancelled_;
-        void* context_;
+        void* impl_ctx_;
+        std::function<void(void*)> impl_ctx_del_;
     };
 }
 

@@ -135,7 +135,7 @@ cflags=$(cflags) /I"$(INCLUDES)"
 !endif
 
 !if DEFINED(LIBS) && "$(LIBS)" != ""
-LINKFLAGS=$(LINKFLAGS) /LIBPATH:"$(LIBS)"
+LINKFLAGS=$(LINKFLAGS) $(LIBS)
 !endif
 
 all:$(_TARGETNAME)

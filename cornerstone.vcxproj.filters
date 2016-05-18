@@ -170,6 +170,9 @@
     <ClCompile Include="uv_delayed_task_scheduler.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_timer.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">
