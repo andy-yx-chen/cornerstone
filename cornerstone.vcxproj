@@ -69,7 +69,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);libuv\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);asio\asio\include</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;libuv\Debug\lib</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -121,6 +121,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="asio_service.hxx" />
     <ClInclude Include="async.hxx" />
     <ClInclude Include="basic_types.hxx" />
     <ClInclude Include="buffer.hxx" />
@@ -156,9 +157,9 @@
     <ClInclude Include="state_mgr.hxx" />
     <ClInclude Include="strfmt.hxx" />
     <ClInclude Include="timer_task.hxx" />
-    <ClInclude Include="uv_delayed_task_scheduler.hxx" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="asio_service.cxx" />
     <ClCompile Include="buffer.cxx" />
     <ClCompile Include="cluster_config.cxx" />
     <ClCompile Include="peer.cxx" />
@@ -172,8 +173,6 @@
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_serialization.cxx" />
     <ClCompile Include="tests\test_strfmt.cxx" />
-    <ClCompile Include="tests\test_timer.cxx" />
-    <ClCompile Include="uv_delayed_task_scheduler.cxx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win" />

@@ -123,7 +123,7 @@
     <ClInclude Include="strfmt.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="uv_delayed_task_scheduler.hxx">
+    <ClInclude Include="asio_service.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -167,11 +167,8 @@
     <ClCompile Include="tests\test_serialization.cxx">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
-    <ClCompile Include="uv_delayed_task_scheduler.cxx">
+    <ClCompile Include="asio_service.cxx">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\test_timer.cxx">
-      <Filter>Source Files\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
