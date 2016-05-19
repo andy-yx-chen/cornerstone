@@ -28,6 +28,11 @@ namespace cornerstone {
             cancelled_ = true;
         }
 
+        void reset() {
+            std::lock_guard<std::mutex> guard(lock_);
+            cancelled_ = false;
+        }
+
         void* get_impl_context() const {
             return impl_ctx_;
         }
