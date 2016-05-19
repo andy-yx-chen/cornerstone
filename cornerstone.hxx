@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <random>
 #include <chrono>
+#include <thread>
 #include <asio.hpp>
 
 // uv defines max and min as marcos
