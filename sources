@@ -4,6 +4,7 @@ UMTYPE=lib
 USE_MSVCRT=YES
 USE_UNICODE=NO
 DEBUG=YES
+cflags=$(cflags) /D_WIN32_WINNT=0x0501
 SOURCES=raft_server.cxx
 
 asio: asio/asio/include/asio.hpp

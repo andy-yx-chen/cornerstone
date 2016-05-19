@@ -170,6 +170,9 @@
     <ClCompile Include="asio_service.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_scheduler.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

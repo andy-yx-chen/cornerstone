@@ -4,6 +4,7 @@ USE_MSVCRT=YES
 USE_UNICODE=NO
 DEBUG=YES
 INCLUDES=../asio/asio/include
+cflags=$(cflags) /D_WIN32_WINNT=0x0501
 SOURCES=\
     test_async_result.cxx\
     test_runner.cxx\
@@ -14,4 +15,6 @@ SOURCES=\
 	..\srv_config.cxx\
 	..\cluster_config.cxx\
     test_buffer.cxx\
-	test_serialization.cxx
+	test_serialization.cxx\
+	..\asio_service.cxx\
+	test_scheduler.cxx
