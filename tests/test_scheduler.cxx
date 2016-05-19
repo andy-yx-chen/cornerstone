@@ -5,7 +5,9 @@ using namespace cornerstone;
 int _timer_fired_counter = 0;
 void test_scheduler() {
     asio_service svc;
-    timer_task<void>::executor handler = (std::function<void()>)([]() -> void { _timer_fired_counter ++; });
+    timer_task<void>::executor handler = (std::function<void()>)([]() -> void {
+        _timer_fired_counter ++; 
+    });
     std::shared_ptr<delayed_task> task(new timer_task<void>(handler));
     std::cout << "scheduled to wait for 200ms" << std::endl;
     svc.schedule(task, 200);
