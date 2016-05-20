@@ -17,4 +17,5 @@ SOURCES=\
     test_buffer.cxx\
 	test_serialization.cxx\
 	..\asio_service.cxx\
-	test_scheduler.cxx
+	test_scheduler.cxx\
+	test_logger.cxx

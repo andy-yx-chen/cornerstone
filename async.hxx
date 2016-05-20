@@ -34,8 +34,8 @@ namespace cornerstone {
                 err_ = err;
                 has_result_ = true;
 	        if (handler_) {
-		    handler_(result, err);
-		}
+		        handler_(result, err);
+		    }
 	    }
 
             cv_.notify_all();

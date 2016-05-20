@@ -2,32 +2,38 @@
 #define _ASIO_SERVICE_HXX_
 
 namespace cornerstone {
+
+    /**
+      Declaring this to hide the dependency of asio.hpp from root header file, which can boost the compilation time
+    */
+    class asio_service_impl;
+
     class asio_service : public delayed_task_scheduler, public rpc_client_factory {
     public:
+        enum log_level {
+            debug = 0x0,
+            info,
+            warnning,
+            error
+        };
+
+    public:
         asio_service();
+        ~asio_service();
 
         __nocopy__(asio_service)
     public:
         virtual void schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds) __override__;
         virtual rpc_client* create_client(const std::string& endpoint) __override__;
-        void stop() {
-            continue_.store(0);
-            keep_alive_tm_.cancel();
-        }
+
+        logger* create_logger(log_level level, const std::string& log_file);
+
+        rpc_listener* create_rpc_listener(int listening_port);
 
     private:
         virtual void cancel_impl(std::shared_ptr<delayed_task>& task) __override__;
-        void worker_entry();
-        void keep_alive(asio::error_code err) {
-            if (!err && continue_.load() == 1) {
-                keep_alive_tm_.expires_after(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::hours(1000)));
-                keep_alive_tm_.async_wait(std::bind(&asio_service::keep_alive, this, std::placeholders::_1));
-            }
-        }
     private:
-        asio::io_service io_svc_;
-        asio::steady_timer keep_alive_tm_;
-        std::atomic_int continue_;
+        asio_service_impl* impl_;
     };
 }
 

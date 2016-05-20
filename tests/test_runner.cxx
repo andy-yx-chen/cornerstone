@@ -12,6 +12,7 @@ __decl_test__(strfmt);
 __decl_test__(buffer);
 __decl_test__(serialization);
 __decl_test__(scheduler);
+__decl_test__(logger);
 
 int main() {
     __run_test__(async_result);
@@ -19,5 +20,6 @@ int main() {
     __run_test__(buffer);
     __run_test__(serialization);
     __run_test__(scheduler);
+    __run_test__(logger);
     return 0;
 }

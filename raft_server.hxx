@@ -61,7 +61,7 @@ namespace cornerstone {
             l_.debug(strfmt<30>("server %d started").fmt(id_));
         }
 
-        ~raft_server() {
+        virtual ~raft_server() {
             for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
                 delete it->second;
             }

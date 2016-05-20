@@ -1,9 +1,6 @@
 #ifndef _CORNERSTONE_HXX_
 #define _CORNERSTONE_HXX_
 
-#define ASIO_STANDALONE 1
-#define ASIO_HAS_STD_CHRONO 1
-
 #include <cstdio>
 #include <cstdlib>
 #include <cinttypes>
@@ -22,7 +19,6 @@
 #include <random>
 #include <chrono>
 #include <thread>
-#include <asio.hpp>
 
 // uv defines max and min as marcos
 #ifdef max

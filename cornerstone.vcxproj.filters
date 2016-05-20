@@ -173,6 +173,9 @@
     <ClCompile Include="tests\test_scheduler.cxx">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_raft_server.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

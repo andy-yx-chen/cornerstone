@@ -1,5 +1,6 @@
 #include "../cornerstone.hxx"
 #include <iostream>
+#include <cassert>
 
 using namespace cornerstone;
 int _timer_fired_counter = 0;
