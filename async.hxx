@@ -28,15 +28,15 @@ namespace cornerstone {
         }
 
         void set_result(T result, TE err) {
-	    {
+	        {
                 std::lock_guard<std::mutex> guard(lock_);
                 result_ = result;
                 err_ = err;
                 has_result_ = true;
-	        if (handler_) {
-		        handler_(result, err);
-		    }
-	    }
+	            if (handler_) {
+		            handler_(result, err);
+		        }
+	        }
 
             cv_.notify_all();
         }

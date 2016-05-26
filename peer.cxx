@@ -10,6 +10,11 @@ void peer::send_req(req_msg* req, rpc_handler& handler) {
 
 void peer::handle_rpc_result(req_msg* req, async_result<resp_msg*, rpc_exception*>* pending_result, resp_msg* resp, rpc_exception* err) {
     if (err == nilptr) {
+        if (req->get_type() == msg_type::append_entries_request ||
+            req->get_type() == msg_type::install_snapshot_request) {
+            set_free();
+        }
+
         resume_hb_speed();
         pending_result->set_result(resp, nilptr);
     }

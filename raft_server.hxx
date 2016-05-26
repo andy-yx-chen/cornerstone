@@ -9,6 +9,7 @@ namespace cornerstone {
             id_(ctx->state_mgr_->server_id()),
             votes_responded_(0),
             votes_granted_(0),
+            quick_commit_idx_(0),
             election_completed_(true),
             config_changing_(false),
             catching_up_(false),
@@ -28,6 +29,8 @@ namespace cornerstone {
             srv_to_join_(nilptr),
             conf_to_add_(nilptr),
             lock_(),
+            commit_lock_(),
+            commit_cv_(),
             resp_handler_((rpc_handler)std::bind(&raft_server::handle_peer_resp, this, std::placeholders::_1, std::placeholders::_2)),
             ex_resp_handler_((rpc_handler)std::bind(&raft_server::handle_ext_resp, this, std::placeholders::_1, std::placeholders::_2)){
             uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
@@ -57,6 +60,9 @@ namespace cornerstone {
                 }
             }
 
+            quick_commit_idx_ = state_->get_commit_idx();
+            std::thread commiting_thread = std::thread(std::bind(&raft_server::commit_in_bg, this));
+            commiting_thread.detach();
             restart_election_timer();
             l_.debug(strfmt<30>("server %d started").fmt(id_));
         }
@@ -99,6 +105,7 @@ namespace cornerstone {
         req_msg* create_append_entries_req(peer& p);
         req_msg* create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx);
         void commit(ulong target_idx);
+        void snapshot_and_compact(ulong committed_idx);
         bool update_term(ulong term);
         void reconfigure(const std::shared_ptr<cluster_config>& new_config);
         void become_leader();
@@ -114,12 +121,15 @@ namespace cornerstone {
         int get_snapshot_sync_block_size() const;
         void on_snapshot_completed(std::shared_ptr<snapshot> s, bool result, std::exception* err);
         void on_retryable_req_err(peer* p, req_msg* req);
+        ulong term_for_log(ulong log_idx);
+        void commit_in_bg();
     private:
         static const int default_snapshot_sync_block_size;
         int32 leader_;
         int32 id_;
         int32 votes_responded_;
         int32 votes_granted_;
+        ulong quick_commit_idx_;
         bool election_completed_;
         bool config_changing_;
         bool catching_up_;
@@ -140,6 +150,8 @@ namespace cornerstone {
         std::unique_ptr<peer> srv_to_join_;
         std::unique_ptr<srv_config> conf_to_add_;
         std::mutex lock_;
+        std::mutex commit_lock_;
+        std::condition_variable commit_cv_;
         rpc_handler resp_handler_;
         rpc_handler ex_resp_handler_;
     };

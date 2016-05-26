@@ -52,6 +52,14 @@ namespace cornerstone {
         virtual log_entry* entry_at(ulong index) = 0;
 
         /**
+        * Gets the term for the log entry at the specified index
+        * Suggest to stop the system if the index >= this->next_slot()
+        * @param index, starts from 1
+        * @return the term for the specified log entry or 0 if index < this->start_index()
+        */
+        virtual ulong term_at(ulong index) = 0;
+
+        /**
         * Pack cnt log items starts from index
         * @param index
         * @param cnt

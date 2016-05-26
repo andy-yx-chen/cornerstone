@@ -73,9 +73,12 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
         }
     }
 
-    resp_msg* resp = new resp_msg(state_->get_term(), msg_type::append_entries_response, id_, req.get_src());
+    // After a snapshot the req.get_last_log_idx() may less than log_store_->next_slot() but equals to log_store_->next_slot() -1
+    // In this case, log is Okay if req.get_last_log_idx() == lastSnapshot.get_last_log_idx() && req.get_last_log_term() == lastSnapshot.get_last_log_term()
+    // In not accepted case, we will return log_store_->next_slot() for the leader to quick jump to the index that might aligned
+    resp_msg* resp = new resp_msg(state_->get_term(), msg_type::append_entries_response, id_, req.get_src(), log_store_->next_slot());
     bool log_okay = req.get_last_log_idx() == 0 ||
-        (req.get_last_log_idx() < log_store_->next_slot() && req.get_last_log_term() == std::unique_ptr<log_entry>(log_store_->entry_at(req.get_last_log_idx()))->get_term());
+        (req.get_last_log_idx() < log_store_->next_slot() && req.get_last_log_term() == term_for_log(req.get_last_log_idx()));
     if (req.get_term() < state_->get_term() || !log_okay) {
         return resp;
     }
@@ -318,10 +321,14 @@ void raft_server::handle_append_entries_resp(resp_msg& resp) {
     }
     else {
         std::lock_guard<std::mutex> guard(p->get_lock());
-        p->set_next_log_idx(p->get_next_log_idx() - 1);
+        if (resp.get_next_idx() > 0 && p->get_next_log_idx() > resp.get_next_idx()) {
+            // fast move for the peer to catch up
+            p->set_next_log_idx(resp.get_next_idx());
+        }
+        else {
+            p->set_next_log_idx(p->get_next_log_idx() - 1);
+        }
     }
-
-    p->set_free();
 
     // This may not be a leader anymore, such as the response was sent out long time ago
     // and the role was updated by UpdateTerm call
@@ -366,7 +373,6 @@ void raft_server::handle_install_snapshot_resp(resp_msg& resp) {
         l_.info("peer declines to install the snapshot, will retry");
     }
 
-    p->set_free();
     // This may not be a leader anymore, such as the response was sent out long time ago
     // and the role was updated by UpdateTerm call
     // Try to match up the logs for this peer
@@ -452,6 +458,7 @@ void raft_server::become_leader() {
     for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
         it->second->set_next_log_idx(log_store_->next_slot());
         it->second->set_snapshot_in_sync(nilptr);
+        it->second->set_free();
         enable_hb_for_peer(*(it->second));
     }
 
@@ -491,87 +498,8 @@ bool raft_server::update_term(ulong term) {
 }
 
 void raft_server::commit(ulong target_idx) {
-    if (target_idx > state_->get_commit_idx()) {
-        bool snapshot_in_action = false;
-        try {
-            while (state_->get_commit_idx() < target_idx && state_->get_commit_idx() < (log_store_->next_slot() - 1)) {
-                ulong idx_to_commit = state_->get_commit_idx() + 1;
-                std::unique_ptr<log_entry> entry(log_store_->entry_at(idx_to_commit));
-                if (entry->get_val_type() == log_val_type::app_log) {
-                    state_machine_.commit(idx_to_commit, entry->get_buf());
-                }
-                else if (entry->get_val_type() == log_val_type::conf) {
-                    ctx_->state_mgr_->save_config(*config_);
-                    if (catching_up_ && config_->get_server(id_) != nilptr) {
-                        l_.info("this server is committed as one of cluster members");
-                        catching_up_ = false;
-                    }
-                }
-
-                state_->set_commit_idx(target_idx);
-
-                // see if we need to do snapshot
-                bool f = false;
-                if (ctx_->params_->snapshot_distance_ > 0
-                    && (idx_to_commit - log_store_->start_index()) > ctx_->params_->snapshot_distance_
-                    && snp_in_progress_.compare_exchange_strong(f, true)) {
-                    snapshot_in_action = true;
-                    std::unique_ptr<snapshot> snp(state_machine_.last_snapshot());
-                    if (snp && (idx_to_commit - snp->get_last_log_idx()) < ctx_->params_->snapshot_distance_) {
-                        l_.info(sstrfmt("a very recent snapshot is available at index %llu, will skip this one").fmt(snp->get_last_log_idx()));
-                        snp_in_progress_.store(false);
-                        snapshot_in_action = false;
-                    }
-                    else {
-                        l_.info(sstrfmt("creating a snapshot for index %llu").fmt(idx_to_commit));
-
-                        // get the latest configuration info
-                        std::shared_ptr<cluster_config> conf(config_);
-                        while (conf->get_log_idx() > idx_to_commit && conf->get_prev_log_idx() >= log_store_->start_index()) {
-                            std::unique_ptr<log_entry> conf_log(log_store_->entry_at(conf->get_prev_log_idx()));
-                            conf.reset(cluster_config::deserialize(conf_log->get_buf()));
-                        }
-
-                        if (conf->get_log_idx() > idx_to_commit &&
-                            conf->get_prev_log_idx() > 0 &&
-                            conf->get_prev_log_idx() < log_store_->start_index()) {
-                            std::unique_ptr<snapshot> s(state_machine_.last_snapshot());
-                            if (!s) {
-                                l_.err("No snapshot could be found while no configuration cannot be found in current committed logs, this is a system error, exiting");
-                                ::exit(-1);
-                                return;
-                            }
-
-                            conf = s->get_last_config();
-                        }
-                        else if (conf->get_log_idx() > idx_to_commit && conf->get_prev_log_idx() == 0) {
-                            l_.err("BUG!!! stop the system, there must be a configuration at index one");
-                            ::exit(-1);
-                            return;
-                        }
-
-                        ulong idx_to_compact = idx_to_commit - 1;
-                        std::unique_ptr<log_entry> last_log_entry(log_store_->entry_at(idx_to_commit));
-                        ulong log_term_to_compact = last_log_entry->get_term();
-                        std::shared_ptr<snapshot> new_snapshot(new snapshot(idx_to_commit, log_term_to_compact, conf));
-                        state_machine_.create_snapshot(
-                            *new_snapshot, 
-                            (async_result<bool>::handler_type)(std::bind(&raft_server::on_snapshot_completed, this, new_snapshot, std::placeholders::_1, std::placeholders::_2)));
-                        snapshot_in_action = false;
-                    }
-                }
-            }
-        }
-        catch (...) {
-            l_.err(sstrfmt("failed to commit to index %llu due to errors").fmt(target_idx));
-            if (snapshot_in_action) {
-                bool t = true;
-                snp_in_progress_.compare_exchange_strong(t, false);
-            }
-        }
-
-        // save the commitment state
-        ctx_->state_mgr_->save_state(*state_);
+    if (target_idx > quick_commit_idx_) {
+        quick_commit_idx_ = target_idx;
 
         // if this is a leader notify peers to commit as well
         // for peers that are free, send the request, otherwise, set pending commit flag for that peer
@@ -581,6 +509,71 @@ void raft_server::commit(ulong target_idx) {
                     it->second->set_pending_commit();
                 }
             }
+        }
+    }
+
+    if (log_store_->next_slot() - 1 > state_->get_commit_idx() && quick_commit_idx_ > state_->get_commit_idx()) {
+        commit_cv_.notify_one();
+    }
+}
+
+void raft_server::snapshot_and_compact(ulong committed_idx) {
+    bool snapshot_in_action = false;
+    try {
+        bool f = false;
+        if (ctx_->params_->snapshot_distance_ > 0
+            && (committed_idx - log_store_->start_index()) > ctx_->params_->snapshot_distance_
+            && snp_in_progress_.compare_exchange_strong(f, true)) {
+            snapshot_in_action = true;
+            std::unique_ptr<snapshot> snp(state_machine_.last_snapshot());
+            if (snp && (committed_idx - snp->get_last_log_idx()) < ctx_->params_->snapshot_distance_) {
+                l_.info(sstrfmt("a very recent snapshot is available at index %llu, will skip this one").fmt(snp->get_last_log_idx()));
+                snp_in_progress_.store(false);
+                snapshot_in_action = false;
+            }
+            else {
+                l_.info(sstrfmt("creating a snapshot for index %llu").fmt(committed_idx));
+
+                // get the latest configuration info
+                std::shared_ptr<cluster_config> conf(config_);
+                while (conf->get_log_idx() > committed_idx && conf->get_prev_log_idx() >= log_store_->start_index()) {
+                    std::unique_ptr<log_entry> conf_log(log_store_->entry_at(conf->get_prev_log_idx()));
+                    conf.reset(cluster_config::deserialize(conf_log->get_buf()));
+                }
+
+                if (conf->get_log_idx() > committed_idx &&
+                    conf->get_prev_log_idx() > 0 &&
+                    conf->get_prev_log_idx() < log_store_->start_index()) {
+                    std::unique_ptr<snapshot> s(state_machine_.last_snapshot());
+                    if (!s) {
+                        l_.err("No snapshot could be found while no configuration cannot be found in current committed logs, this is a system error, exiting");
+                        ::exit(-1);
+                        return;
+                    }
+
+                    conf = s->get_last_config();
+                }
+                else if (conf->get_log_idx() > committed_idx && conf->get_prev_log_idx() == 0) {
+                    l_.err("BUG!!! stop the system, there must be a configuration at index one");
+                    ::exit(-1);
+                    return;
+                }
+
+                ulong idx_to_compact = committed_idx - 1;
+                ulong log_term_to_compact = log_store_->term_at(idx_to_compact);
+                std::shared_ptr<snapshot> new_snapshot(new snapshot(idx_to_compact, log_term_to_compact, conf));
+                state_machine_.create_snapshot(
+                    *new_snapshot,
+                    (async_result<bool>::handler_type)(std::bind(&raft_server::on_snapshot_completed, this, new_snapshot, std::placeholders::_1, std::placeholders::_2)));
+                snapshot_in_action = false;
+            }
+        }
+    }
+    catch (...) {
+        l_.err(sstrfmt("failed to compact logs at index %llu due to errors").fmt(committed_idx));
+        if (snapshot_in_action) {
+            bool val = true;
+            snp_in_progress_.compare_exchange_strong(val, false);
         }
     }
 }
@@ -617,7 +610,7 @@ req_msg* raft_server::create_append_entries_req(peer& p) {
         std::lock_guard<std::mutex> guard(lock_);
         starting_idx = log_store_->start_index();
         cur_nxt_idx = log_store_->next_slot();
-        commit_idx = state_->get_commit_idx();
+        commit_idx = quick_commit_idx_;
         term = state_->get_term();
     }
 
@@ -636,23 +629,24 @@ req_msg* raft_server::create_append_entries_req(peer& p) {
         return nilptr;
     }
 
-    // for syncing the snapshots
-    if (last_log_idx > 0 && last_log_idx < starting_idx) {
+    // for syncing the snapshots, for starting_idx - 1, we can check with last snapshot
+    if (last_log_idx > 0 && last_log_idx < starting_idx - 1) {
         return create_sync_snapshot_req(p, last_log_idx, term, commit_idx);
     }
 
-    std::unique_ptr<log_entry> last_entry(log_store_->entry_at(last_log_idx));
-    std::unique_ptr<std::vector<log_entry*>> log_entries((last_log_idx + 1) >= cur_nxt_idx ? nilptr : log_store_->log_entries(last_log_idx + 1, cur_nxt_idx));
+    ulong last_log_term = term_for_log(last_log_idx);
+    ulong end_idx = std::min(cur_nxt_idx, last_log_idx + 1 + ctx_->params_->max_append_size_);
+    std::unique_ptr<std::vector<log_entry*>> log_entries((last_log_idx + 1) >= cur_nxt_idx ? nilptr : log_store_->log_entries(last_log_idx + 1, end_idx));
     l_.debug(
         lstrfmt("An AppendEntries Request for %d with LastLogIndex=%llu, LastLogTerm=%llu, EntriesLength=%d, CommitIndex=%llu and Term=%llu")
         .fmt(
             p.get_id(),
             last_log_idx,
-            last_entry->get_term(),
+            last_log_term,
             log_entries->size(),
             commit_idx,
             term));
-    req_msg* req = new req_msg(term, msg_type::append_entries_request, id_, p.get_id(), last_entry->get_term(), last_log_idx, commit_idx);
+    req_msg* req = new req_msg(term, msg_type::append_entries_request, id_, p.get_id(), last_log_term, last_log_idx, commit_idx);
     std::vector<log_entry*>& v = req->log_entries();
     v.insert(v.end(), log_entries->begin(), log_entries->end());
     return req;
@@ -761,6 +755,11 @@ resp_msg* raft_server::handle_install_snapshot_req(req_msg& req) {
     }
 
     std::unique_ptr<snapshot_sync_req> sync_req(snapshot_sync_req::deserialize(entries[0]->get_buf()));
+    if (sync_req->get_snapshot().get_last_log_idx() < state_->get_commit_idx()) {
+        l_.warn(sstrfmt("received a snapshot (%llu) that is older than current log store").fmt(sync_req->get_snapshot().get_last_log_idx()));
+        return resp;
+    }
+
     if (handle_snapshot_sync_req(*sync_req)) {
         resp->accept(sync_req->get_offset() + sync_req->get_data().size());
     }
@@ -772,8 +771,17 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
     try {
         state_machine_.save_snapshot_data(req.get_snapshot(), req.get_offset(), req.get_data());
         if (req.is_done()) {
+            // Only follower will run this piece of code, but let's check it again
+            if (role_ != srv_role::follower) {
+                l_.err("bad server role for applying a snapshot, exit for debugging");
+                ::exit(-1);
+            }
+
             l_.debug("sucessfully receive a snapshot from leader");
             if (log_store_->compact(req.get_snapshot().get_last_log_idx())) {
+                // The state machine will not be able to commit anything before the snapshot is applied, so make this synchronously
+                // with election timer stopped as usually applying a snapshot may take a very long time
+                stop_election_timer();
                 l_.info("successfully compact the log store, will now ask the statemachine to apply the snapshot");
                 if (!state_machine_.apply_snapshot(req.get_snapshot())) {
                     l_.info("failed to apply the snapshot after log compacted, to ensure the safety, will shutdown the system");
@@ -784,7 +792,9 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
                 reconfigure(req.get_snapshot().get_last_config());
                 ctx_->state_mgr_->save_config(*config_);
                 state_->set_commit_idx(req.get_snapshot().get_last_log_idx());
+                quick_commit_idx_ = req.get_snapshot().get_last_log_idx();
                 ctx_->state_mgr_->save_state(*state_);
+                restart_election_timer();
                 l_.info("snapshot is successfully applied");
             }
             else {
@@ -975,7 +985,7 @@ resp_msg* raft_server::handle_rm_srv_req(req_msg& req) {
 
     peer* p = pit->second;
     config_changing_ = true;
-    req_msg* leave_req = new req_msg(state_->get_term(), msg_type::leave_cluster_request, id_, srv_id, 0, log_store_->next_slot() - 1, state_->get_commit_idx());
+    req_msg* leave_req = new req_msg(state_->get_term(), msg_type::leave_cluster_request, id_, srv_id, 0, log_store_->next_slot() - 1, quick_commit_idx_);
     p->send_req(leave_req, ex_resp_handler_);
     resp->accept(log_store_->next_slot());
     return resp;
@@ -1035,7 +1045,7 @@ resp_msg* raft_server::handle_log_sync_req(req_msg& req) {
 
 void raft_server::sync_log_to_new_srv(ulong start_idx) {
     // only sync committed logs
-    int32 gap = (int32)(state_->get_commit_idx() - start_idx);
+    int32 gap = (int32)(quick_commit_idx_ - start_idx);
     if (gap < ctx_->params_->log_sync_stop_gap_) {
         l_.info(lstrfmt("LogSync is done for server %d with log gap %d, now put the server into cluster").fmt(srv_to_join_->get_id(), gap));
         cluster_config* new_conf = new cluster_config(log_store_->next_slot(), config_->get_log_idx());
@@ -1053,12 +1063,12 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
 
     req_msg* req = nilptr;
     if (start_idx > 0 && start_idx < log_store_->start_index()) {
-        req = create_sync_snapshot_req(*srv_to_join_, start_idx, state_->get_term(), state_->get_commit_idx());
+        req = create_sync_snapshot_req(*srv_to_join_, start_idx, state_->get_term(), quick_commit_idx_);
     }
     else {
         int32 size_to_sync = std::min(gap, ctx_->params_->log_sync_batch_size_);
         buffer* log_pack = log_store_->pack(start_idx, size_to_sync);
-        req = new req_msg(state_->get_term(), msg_type::sync_log_request, id_, srv_to_join_->get_id(), 0L, start_idx - 1, state_->get_commit_idx());
+        req = new req_msg(state_->get_term(), msg_type::sync_log_request, id_, srv_to_join_->get_id(), 0L, start_idx - 1, quick_commit_idx_);
         req->log_entries().push_back(new log_entry(state_->get_term(), log_pack, log_val_type::log_pack));
     }
 
@@ -1066,7 +1076,7 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
 }
 
 void raft_server::invite_srv_to_join_cluster() {
-    req_msg* req = new req_msg(state_->get_term(), msg_type::join_cluster_request, id_, srv_to_join_->get_id(), 0L, log_store_->next_slot() - 1, state_->get_commit_idx());
+    req_msg* req = new req_msg(state_->get_term(), msg_type::join_cluster_request, id_, srv_to_join_->get_id(), 0L, log_store_->next_slot() - 1, quick_commit_idx_);
     req->log_entries().push_back(new log_entry(state_->get_term(), config_->serialize(), log_val_type::conf));
     srv_to_join_->send_req(req, ex_resp_handler_);
 }
@@ -1088,6 +1098,7 @@ resp_msg* raft_server::handle_join_cluster_req(req_msg& req) {
     role_ = srv_role::follower;
     leader_ = req.get_src();
     state_->set_commit_idx(0);
+    quick_commit_idx_ = 0;
     state_->set_voted_for(-1);
     state_->set_term(req.get_term());
     ctx_->state_mgr_->save_state(*state_);
@@ -1145,7 +1156,7 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
         if (snp == nilptr || last_log_idx > snp->get_last_log_idx()) {
             l_.err(
                 lstrfmt("system is running into fatal errors, failed to find a snapshot for peer %d(snapshot null: %d, snapshot doesn't contais lastLogIndex: %d")
-                .fmt(p.get_id(), snp == nilptr, last_log_idx > snp->get_last_log_idx()));
+                .fmt(p.get_id(), snp == nilptr ? 1 : 0, last_log_idx > snp->get_last_log_idx() ? 1 : 0));
             ::exit(-1);
             return nilptr;
         }
@@ -1175,4 +1186,59 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
     req_msg* req = new req_msg(term, msg_type::install_snapshot_request, id_, p.get_id(), snp->get_last_log_term(), snp->get_last_log_idx(), commit_idx);
     req->log_entries().push_back(new log_entry(term, sync_req->serialize(), log_val_type::snp_sync_req));
     return req;
+}
+
+ulong raft_server::term_for_log(ulong log_idx) {
+    if (log_idx == 0) {
+        return 0L;
+    }
+
+    if (log_idx >= log_store_->start_index()) {
+        return log_store_->term_at(log_idx);
+    }
+
+    std::unique_ptr<snapshot> last_snapshot(state_machine_.last_snapshot());
+    if (!last_snapshot || log_idx != last_snapshot->get_last_log_idx()) {
+        l_.err(sstrfmt("bad log_idx %llu for retrieving the term value, kill the system to protect the system").fmt(log_idx));
+        ::exit(-1);
+    }
+
+    return last_snapshot->get_last_log_term();
+}
+
+void raft_server::commit_in_bg() {
+    while (true) {
+        try {
+            ulong current_commit_idx = state_->get_commit_idx();
+            while (quick_commit_idx_ <= current_commit_idx
+                || current_commit_idx >= log_store_->next_slot() - 1) {
+                std::unique_lock<std::mutex> lock(commit_lock_);
+                commit_cv_.wait(lock);
+                current_commit_idx = state_->get_commit_idx();
+            }
+
+            while (current_commit_idx < quick_commit_idx_ && current_commit_idx < log_store_->next_slot() - 1) {
+                current_commit_idx += 1;
+                std::unique_ptr<log_entry> log_entry(log_store_->entry_at(current_commit_idx));
+                if (log_entry->get_val_type() == log_val_type::app_log) {
+                    state_machine_.commit(current_commit_idx, log_entry->get_buf());
+                } else if (log_entry->get_val_type() == log_val_type::conf) {
+                    std::lock_guard<std::mutex> guard(lock_);
+                    ctx_->state_mgr_->save_config(*config_);
+                    if (catching_up_ && config_->get_server(id_) != nilptr) {
+                        l_.info("this server is committed as one of cluster members");
+                        catching_up_ = false;
+                    }
+                }
+
+                state_->set_commit_idx(current_commit_idx);
+                snapshot_and_compact(current_commit_idx);
+            }
+
+            ctx_->state_mgr_->save_state(*state_);
+        }catch(...){
+            l_.err("background committing thread encounter a bad error, exiting to protect the system");
+            ::exit(-1);
+        }
+    }
 }

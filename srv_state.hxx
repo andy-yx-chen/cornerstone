@@ -13,7 +13,12 @@ namespace cornerstone {
         ulong get_term() const { return term_; }
         void set_term(ulong term) { term_ = term; }
         ulong get_commit_idx() const { return commit_idx_; }
-        void set_commit_idx(ulong commit_idx) { commit_idx_ = commit_idx; }
+        void set_commit_idx(ulong commit_idx) {
+            if (commit_idx > commit_idx_) {
+                commit_idx_ = commit_idx;
+            }
+        }
+
         int get_voted_for() const { return voted_for_; }
         void set_voted_for(int voted_for) { voted_for_ = voted_for; }
         void inc_term() { term_ += 1; }
