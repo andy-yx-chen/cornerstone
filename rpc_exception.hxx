@@ -11,7 +11,7 @@ namespace cornerstone {
     public:
         req_msg* req() const { return req_; }
 
-        virtual const char* what() const __override__ {
+        virtual const char* what() const throw() __override__ {
             return err_;
         }
     private:

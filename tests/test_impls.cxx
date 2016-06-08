@@ -285,7 +285,7 @@ public:
 
     virtual void send(req_msg* req, rpc_handler& when_done) __override__ {
         std::shared_ptr<async_result<resp_msg*>> result(new async_result<resp_msg*>());
-        result->when_ready(async_result<resp_msg*>::handler_type([req, when_done](resp_msg* resp, std::exception* err) -> void {
+	async_result<resp_msg*>::handler_type handler([req, when_done](resp_msg* resp, std::exception* err) -> void {
             if (err != nilptr) {
                 when_done(nilptr, new rpc_exception(err->what(), req));
             }
@@ -294,7 +294,8 @@ public:
             }
 
             delete req;
-        }));
+        });
+        result->when_ready(handler);
         
         msg_bus::message msg(std::make_pair(req, result));
         bus_.send_msg(port_, msg);
