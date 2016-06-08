@@ -6,8 +6,8 @@ namespace cornerstone {
     public:
         peer(const srv_config& config, const context& ctx, timer_task<peer&>::executor& hb_exec)
             : config_(config),
-            scheduler_(*(ctx.scheduler_)),
-            rpc_(ctx.rpc_cli_factory_->create_client(config.get_endpoint())),
+            scheduler_(ctx.scheduler_),
+            rpc_(ctx.rpc_cli_factory_.create_client(config.get_endpoint())),
             current_hb_interval_(ctx.params_->heart_beat_interval_),
             hb_interval_(ctx.params_->heart_beat_interval_),
             rpc_backoff_(ctx.params_->rpc_failure_backoff_),

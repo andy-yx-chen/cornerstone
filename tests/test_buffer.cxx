@@ -46,6 +46,7 @@ static void do_test(buffer* buf) {
     buffer::safe_buffer buf1(std::move(buffer::safe_alloc(100)));
     buf1->put("another string");
     buf1->pos(0);
+    buffer::safe_buffer buf2(buffer::make_safe(buffer::copy(*buf1)));
     buf->put(*buf1);
     buf->pos(0);
     for (int i = 0; i < 100; ++i) {
@@ -58,5 +59,6 @@ static void do_test(buffer* buf) {
     assert(strcmp("a string", buf->get_str()) == 0);
     assert(b1 == buf->get_byte());
     assert(strcmp("another string", buf->get_str()) == 0);
+    assert(strcmp("another string", buf2->get_str()) == 0);
     assert(buf->pos() == (100 * sz_int + 2 * sz_byte + sz_ulong + strlen("a string") + 1 + strlen("another string") + 1));
 }

@@ -6,6 +6,7 @@ namespace cornerstone {
     __interface_body__(rpc_listener)
     public:
         virtual void listen(msg_handler* handler) = 0;
+        virtual void stop() = 0;
     };
 }
 

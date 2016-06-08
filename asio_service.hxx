@@ -30,6 +30,8 @@ namespace cornerstone {
 
         rpc_listener* create_rpc_listener(int listening_port);
 
+        void stop();
+
     private:
         virtual void cancel_impl(std::shared_ptr<delayed_task>& task) __override__;
     private:

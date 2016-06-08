@@ -41,6 +41,13 @@ void buffer::release(buffer* buf) {
     ::free(__is_big_block(buf) ? (void*)(((ulong)buf) ^ 1) : buf);
 }
 
+buffer* buffer::copy(const buffer& buf) {
+    buffer* other = alloc(buf.size() - buf.pos());
+    other->put(buf);
+    other->pos(0);
+    return other;
+}
+
 size_t buffer::size() const {
     return (size_t)(__size_of_block(this));
 }

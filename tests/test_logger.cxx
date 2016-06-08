@@ -49,4 +49,6 @@ void test_logger() {
 
     std::remove("log1.log");
     std::remove("log2.log");
+    svc.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }

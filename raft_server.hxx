@@ -6,26 +6,27 @@ namespace cornerstone {
     public:
         raft_server(context* ctx)
         : leader_(-1),
-            id_(ctx->state_mgr_->server_id()),
+            id_(ctx->state_mgr_.server_id()),
             votes_responded_(0),
             votes_granted_(0),
             quick_commit_idx_(0),
             election_completed_(true),
             config_changing_(false),
             catching_up_(false),
+            stopping_(false),
             steps_to_down_(0),
             snp_in_progress_(),
             ctx_(ctx),
-            scheduler_(*ctx->scheduler_),
+            scheduler_(ctx->scheduler_),
             election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
             election_task_(nilptr),
             peers_(),
             role_(srv_role::follower),
-            state_(ctx->state_mgr_->read_state()),
-            log_store_(ctx->state_mgr_->load_log_store()),
-            state_machine_(*ctx->state_machine_),
-            l_(*ctx->logger_),
-            config_(ctx->state_mgr_->load_config()),
+            state_(ctx->state_mgr_.read_state()),
+            log_store_(ctx->state_mgr_.load_log_store()),
+            state_machine_(ctx->state_machine_),
+            l_(ctx->logger_),
+            config_(ctx->state_mgr_.load_config()),
             srv_to_join_(nilptr),
             conf_to_add_(nilptr),
             lock_(),
@@ -68,7 +69,18 @@ namespace cornerstone {
         }
 
         virtual ~raft_server() {
+            recur_lock(lock_);
+            stopping_ = true;
+            commit_cv_.notify_all();
+            if (election_task_) {
+                election_task_->cancel();
+            }
+
             for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
+                if (it->second->get_hb_task()) {
+                    it->second->get_hb_task()->cancel();
+                }
+
                 delete it->second;
             }
         }
@@ -133,6 +145,7 @@ namespace cornerstone {
         bool election_completed_;
         bool config_changing_;
         bool catching_up_;
+        bool stopping_;
         int32 steps_to_down_;
         std::atomic_bool snp_in_progress_;
         std::unique_ptr<context> ctx_;
@@ -149,7 +162,7 @@ namespace cornerstone {
         std::shared_ptr<cluster_config> config_;
         std::unique_ptr<peer> srv_to_join_;
         std::unique_ptr<srv_config> conf_to_add_;
-        std::mutex lock_;
+        std::recursive_mutex lock_;
         std::mutex commit_lock_;
         std::condition_variable commit_cv_;
         rpc_handler resp_handler_;

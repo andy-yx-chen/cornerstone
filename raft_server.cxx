@@ -5,7 +5,7 @@ using namespace cornerstone;
 const int raft_server::default_snapshot_sync_block_size = 4 * 1024;
 
 resp_msg* raft_server::process_req(req_msg& req) {
-    std::lock_guard<std::mutex> guard(lock_);
+    recur_lock(lock_);
     l_.debug(
         lstrfmt("Receive a %d message from %d with LastLogIndex=%llu, LastLogTerm=%llu, EntriesLength=%d, CommitIndex=%llu and Term=%llu")
         .fmt(
@@ -66,6 +66,7 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
             l_.debug(
                 lstrfmt("Receive AppendEntriesRequest from another leader(%d) with same term, there must be a bug, server exits")
                 .fmt(req.get_src()));
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
         }
         else {
@@ -103,7 +104,7 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
         while (idx < log_store_->next_slot() && log_idx < req.log_entries().size()) {
             if (idx <= config_->get_log_idx()) {
                 // we need to restore the configuration from previous committed configuration
-                reconfigure(std::shared_ptr<cluster_config>(ctx_->state_mgr_->load_config()));
+                reconfigure(std::shared_ptr<cluster_config>(ctx_->state_mgr_.load_config()));
             }
 
             std::unique_ptr<log_entry> old_entry(log_store_->entry_at(idx));
@@ -116,7 +117,7 @@ resp_msg* raft_server::handle_append_entries(req_msg& req) {
 
         // append new log entries
         while (log_idx < req.log_entries().size()) {
-            log_entry* entry = req.log_entries().at(log_idx);
+            log_entry* entry = req.log_entries().at(log_idx ++);
             log_store_->append(*entry);
             if (entry->get_val_type() == log_val_type::conf) {
                 reconfigure(std::shared_ptr<cluster_config>(cluster_config::deserialize(entry->get_buf())));
@@ -142,7 +143,7 @@ resp_msg* raft_server::handle_vote_req(req_msg& req) {
     if (grant) {
         resp->accept(log_store_->next_slot());
         state_->set_voted_for(req.get_src());
-        ctx_->state_mgr_->save_state(*state_);
+        ctx_->state_mgr_.save_state(*state_);
     }
 
     return resp;
@@ -167,10 +168,11 @@ resp_msg* raft_server::handle_cli_req(req_msg& req) {
 }
 
 void raft_server::handle_election_timeout() {
-    std::lock_guard<std::mutex> lock_guard(lock_);
+    recur_lock(lock_);
     if (steps_to_down_ > 0) {
         if (--steps_to_down_ == 0) {
             l_.info("no hearing further news from leader, step down");
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(0);
             return;
         }
@@ -189,6 +191,7 @@ void raft_server::handle_election_timeout() {
 
     if (role_ == srv_role::leader) {
         l_.err("A leader should never encounter election timeout, illegal application state, stop the application");
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         return;
     }
@@ -200,7 +203,7 @@ void raft_server::handle_election_timeout() {
     votes_granted_ = 0;
     votes_responded_ = 0;
     election_completed_ = false;
-    ctx_->state_mgr_->save_state(*state_);
+    ctx_->state_mgr_.save_state(*state_);
     request_vote();
 
     // restart the election timer if this is not yet a leader
@@ -212,7 +215,7 @@ void raft_server::handle_election_timeout() {
 void raft_server::request_vote() {
     l_.info(sstrfmt("requestVote started with term %llu").fmt(state_->get_term()));
     state_->set_voted_for(id_);
-    ctx_->state_mgr_->save_state(*state_);
+    ctx_->state_mgr_.save_state(*state_);
     votes_granted_ += 1;
     votes_responded_ += 1;
 
@@ -253,7 +256,7 @@ bool raft_server::request_append_entries(peer& p) {
 }
 
 void raft_server::handle_peer_resp(resp_msg* resp_p, rpc_exception* err_p) {
-    std::lock_guard<std::mutex> guard(lock_);
+    recur_lock(lock_);
     std::unique_ptr<resp_msg> resp(resp_p);
     std::unique_ptr<rpc_exception> err(err_p);
     if (err) {
@@ -285,6 +288,7 @@ void raft_server::handle_peer_resp(resp_msg* resp_p, rpc_exception* err_p) {
         break;
     default:
         l_.err(sstrfmt("Received an unexpected message %d for response, system exits.").fmt(resp->get_type()));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
     }
@@ -404,7 +408,7 @@ void raft_server::handle_voting_resp(resp_msg& resp) {
 }
 
 void raft_server::handle_hb_timeout(peer& p) {
-    std::lock_guard<std::mutex> guard(lock_);
+    recur_lock(lock_);
     l_.debug(sstrfmt("Heartbeat timeout for %d").fmt(p.get_id()));
     if (role_ == srv_role::leader) {
         request_append_entries(p);
@@ -412,7 +416,7 @@ void raft_server::handle_hb_timeout(peer& p) {
             std::lock_guard<std::mutex> guard(p.get_lock());
             if (p.is_hb_enabled()) {
                 // Schedule another heartbeat if heartbeat is still enabled 
-                ctx_->scheduler_->schedule(p.get_hb_task(), p.get_current_hb_interval());
+                ctx_->scheduler_.schedule(p.get_hb_task(), p.get_current_hb_interval());
             }
             else {
                 l_.debug(sstrfmt("heartbeat is disabled for peer %d").fmt(p.get_id()));
@@ -447,7 +451,6 @@ void raft_server::stop_election_timer() {
     }
 
     scheduler_.cancel(election_task_);
-    election_task_.reset();
 }
 
 void raft_server::become_leader() {
@@ -460,6 +463,12 @@ void raft_server::become_leader() {
         it->second->set_snapshot_in_sync(nilptr);
         it->second->set_free();
         enable_hb_for_peer(*(it->second));
+    }
+
+    if (config_->get_log_idx() == 0) {
+        config_->set_log_idx(log_store_->next_slot());
+        log_entry entry(state_->get_term(), config_->serialize(), log_val_type::conf);
+        log_store_->append(entry);
     }
 
     request_append_entries();
@@ -489,7 +498,7 @@ bool raft_server::update_term(ulong term) {
         election_completed_ = false;
         votes_granted_ = 0;
         votes_responded_ = 0;
-        ctx_->state_mgr_->save_state(*state_);
+        ctx_->state_mgr_.save_state(*state_);
         become_follower();
         return true;
     }
@@ -547,6 +556,7 @@ void raft_server::snapshot_and_compact(ulong committed_idx) {
                     std::unique_ptr<snapshot> s(state_machine_.last_snapshot());
                     if (!s) {
                         l_.err("No snapshot could be found while no configuration cannot be found in current committed logs, this is a system error, exiting");
+                        ctx_->state_mgr_.system_exit(-1);
                         ::exit(-1);
                         return;
                     }
@@ -555,6 +565,7 @@ void raft_server::snapshot_and_compact(ulong committed_idx) {
                 }
                 else if (conf->get_log_idx() > committed_idx && conf->get_prev_log_idx() == 0) {
                     l_.err("BUG!!! stop the system, there must be a configuration at index one");
+                    ctx_->state_mgr_.system_exit(-1);
                     ::exit(-1);
                     return;
                 }
@@ -591,7 +602,7 @@ void raft_server::on_snapshot_completed(std::shared_ptr<snapshot> s, bool result
         }
 
         {
-            std::lock_guard<std::mutex> guard(lock_);
+            recur_lock(lock_);
             l_.debug("snapshot created, compact the log store");
             log_store_->compact(s->get_last_log_idx());
         }
@@ -607,7 +618,7 @@ req_msg* raft_server::create_append_entries_req(peer& p) {
     ulong starting_idx(1L);
 
     {
-        std::lock_guard<std::mutex> guard(lock_);
+        recur_lock(lock_);
         starting_idx = log_store_->start_index();
         cur_nxt_idx = log_store_->next_slot();
         commit_idx = quick_commit_idx_;
@@ -625,6 +636,7 @@ req_msg* raft_server::create_append_entries_req(peer& p) {
 
     if (last_log_idx >= cur_nxt_idx) {
         l_.err(sstrfmt("Peer's lastLogIndex is too large %llu v.s. %llu, server exits").fmt(last_log_idx, cur_nxt_idx));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         return nilptr;
     }
@@ -643,12 +655,15 @@ req_msg* raft_server::create_append_entries_req(peer& p) {
             p.get_id(),
             last_log_idx,
             last_log_term,
-            log_entries->size(),
+            log_entries ? log_entries->size() : 0,
             commit_idx,
             term));
     req_msg* req = new req_msg(term, msg_type::append_entries_request, id_, p.get_id(), last_log_term, last_log_idx, commit_idx);
     std::vector<log_entry*>& v = req->log_entries();
-    v.insert(v.end(), log_entries->begin(), log_entries->end());
+    if (log_entries) {
+        v.insert(v.end(), log_entries->begin(), log_entries->end());
+    }
+
     return req;
 }
 
@@ -720,6 +735,7 @@ resp_msg* raft_server::handle_extended_msg(req_msg& req) {
         return handle_install_snapshot_req(req);
     default:
         l_.err(sstrfmt("receive an unknown request %d, for safety, step down.").fmt(req.get_type()));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
     }
@@ -734,6 +750,7 @@ resp_msg* raft_server::handle_install_snapshot_req(req_msg& req) {
         }
         else if (role_ == srv_role::leader) {
             l_.err(lstrfmt("Receive InstallSnapshotRequest from another leader(%d) with same term, there must be a bug, server exits").fmt(req.get_src()));
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
             return nilptr;
         }
@@ -774,6 +791,7 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
             // Only follower will run this piece of code, but let's check it again
             if (role_ != srv_role::follower) {
                 l_.err("bad server role for applying a snapshot, exit for debugging");
+                ctx_->state_mgr_.system_exit(-1);
                 ::exit(-1);
             }
 
@@ -785,15 +803,16 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
                 l_.info("successfully compact the log store, will now ask the statemachine to apply the snapshot");
                 if (!state_machine_.apply_snapshot(req.get_snapshot())) {
                     l_.info("failed to apply the snapshot after log compacted, to ensure the safety, will shutdown the system");
+                    ctx_->state_mgr_.system_exit(-1);
                     ::exit(-1);
                     return false;
                 }
 
                 reconfigure(req.get_snapshot().get_last_config());
-                ctx_->state_mgr_->save_config(*config_);
+                ctx_->state_mgr_.save_config(*config_);
                 state_->set_commit_idx(req.get_snapshot().get_last_log_idx());
                 quick_commit_idx_ = req.get_snapshot().get_last_log_idx();
-                ctx_->state_mgr_->save_state(*state_);
+                ctx_->state_mgr_.save_state(*state_);
                 restart_election_timer();
                 l_.info("snapshot is successfully applied");
             }
@@ -805,6 +824,7 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
     }
     catch (...) {
         l_.err("failed to handle snapshot installation due to system errors");
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         return false;
     }
@@ -813,7 +833,7 @@ bool raft_server::handle_snapshot_sync_req(snapshot_sync_req& req) {
 }
 
 void raft_server::handle_ext_resp(resp_msg* presp, rpc_exception* perr) {
-    std::lock_guard<std::mutex> guard(lock_);
+    recur_lock(lock_);
     std::unique_ptr<resp_msg> resp(presp);
     std::unique_ptr<rpc_exception> err(perr);
     if (err) {
@@ -879,6 +899,7 @@ void raft_server::handle_ext_resp(resp_msg* presp, rpc_exception* perr) {
             snapshot_sync_ctx* sync_ctx = srv_to_join_->get_snapshot_sync_ctx();
             if (sync_ctx == nilptr) {
                 l_.err("Bug! SnapshotSyncContext must not be null");
+                ctx_->state_mgr_.system_exit(-1);
                 ::exit(-1);
                 return;
             }
@@ -900,6 +921,7 @@ void raft_server::handle_ext_resp(resp_msg* presp, rpc_exception* perr) {
         break;
     default:
         l_.err(lstrfmt("received an unexpected response message type %d, for safety, stepping down").fmt(resp->get_type()));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
     }
@@ -1101,7 +1123,7 @@ resp_msg* raft_server::handle_join_cluster_req(req_msg& req) {
     quick_commit_idx_ = 0;
     state_->set_voted_for(-1);
     state_->set_term(req.get_term());
-    ctx_->state_mgr_->save_state(*state_);
+    ctx_->state_mgr_.save_state(*state_);
     reconfigure(std::shared_ptr<cluster_config>(cluster_config::deserialize(entries[0]->get_buf())));
     resp->accept(log_store_->next_slot());
     return resp;
@@ -1157,12 +1179,14 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
             l_.err(
                 lstrfmt("system is running into fatal errors, failed to find a snapshot for peer %d(snapshot null: %d, snapshot doesn't contais lastLogIndex: %d")
                 .fmt(p.get_id(), snp == nilptr ? 1 : 0, last_log_idx > snp->get_last_log_idx() ? 1 : 0));
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
             return nilptr;
         }
 
         if (snp->size() < 1L) {
             l_.err("invalid snapshot, this usually means a bug from state machine implementation, stop the system to prevent further errors");
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
             return nilptr;
         }
@@ -1178,6 +1202,7 @@ req_msg* raft_server::create_sync_snapshot_req(peer& p, ulong last_log_idx, ulon
     int32 sz_rd = state_machine_.read_snapshot_data(*snp, offset, *data);
     if ((size_t)sz_rd < data->size()) {
         l_.err(lstrfmt("only %d bytes could be read from snapshot while %d bytes are expected, must be something wrong, exit.").fmt(sz_rd, data->size()));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         return nilptr;
     }
@@ -1200,6 +1225,7 @@ ulong raft_server::term_for_log(ulong log_idx) {
     std::unique_ptr<snapshot> last_snapshot(state_machine_.last_snapshot());
     if (!last_snapshot || log_idx != last_snapshot->get_last_log_idx()) {
         l_.err(sstrfmt("bad log_idx %llu for retrieving the term value, kill the system to protect the system").fmt(log_idx));
+        ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
     }
 
@@ -1214,6 +1240,10 @@ void raft_server::commit_in_bg() {
                 || current_commit_idx >= log_store_->next_slot() - 1) {
                 std::unique_lock<std::mutex> lock(commit_lock_);
                 commit_cv_.wait(lock);
+                if (stopping_) {
+                    return;
+                }
+
                 current_commit_idx = state_->get_commit_idx();
             }
 
@@ -1223,8 +1253,8 @@ void raft_server::commit_in_bg() {
                 if (log_entry->get_val_type() == log_val_type::app_log) {
                     state_machine_.commit(current_commit_idx, log_entry->get_buf());
                 } else if (log_entry->get_val_type() == log_val_type::conf) {
-                    std::lock_guard<std::mutex> guard(lock_);
-                    ctx_->state_mgr_->save_config(*config_);
+                    recur_lock(lock_);
+                    ctx_->state_mgr_.save_config(*config_);
                     if (catching_up_ && config_->get_server(id_) != nilptr) {
                         l_.info("this server is committed as one of cluster members");
                         catching_up_ = false;
@@ -1235,9 +1265,10 @@ void raft_server::commit_in_bg() {
                 snapshot_and_compact(current_commit_idx);
             }
 
-            ctx_->state_mgr_->save_state(*state_);
+            ctx_->state_mgr_.save_state(*state_);
         }catch(...){
             l_.err("background committing thread encounter a bad error, exiting to protect the system");
+            ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
         }
     }

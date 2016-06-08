@@ -3,10 +3,12 @@
 
 namespace cornerstone {
     class buffer {
+        __nocopy__(buffer)
     public:
         typedef std::shared_ptr<buffer> safe_buffer;
         static void release(buffer* buff);
         static buffer* alloc(const size_t size);
+        static buffer* copy(const buffer& buf);
         static safe_buffer safe_alloc(const size_t size) {
             return std::move(safe_buffer(alloc(size), &buffer::release));
         }

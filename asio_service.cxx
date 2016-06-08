@@ -114,7 +114,12 @@ asio_service_impl::~asio_service_impl() {
 }
 
 void asio_service_impl::worker_entry() {
-    io_svc_.run();
+    try {
+        io_svc_.run();
+    }
+    catch (...) {
+        // ignore all exceptions
+    }
 }
 
 void asio_service_impl::flush_all_loggers(asio::error_code err) {
@@ -194,6 +199,10 @@ void asio_service::cancel_impl(std::shared_ptr<delayed_task>& task) {
     if (task->get_impl_context() != nilptr) {
         static_cast<asio::steady_timer*>(task->get_impl_context())->cancel();
     }
+}
+
+void asio_service::stop() {
+    impl_->stop();
 }
 
 rpc_client* asio_service::create_client(const std::string& endpoint) {
