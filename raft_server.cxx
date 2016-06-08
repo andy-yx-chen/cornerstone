@@ -226,9 +226,8 @@ void raft_server::request_vote() {
         return;
     }
 
-    log_entry& entry = log_store_->last_entry();
     for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
-        req_msg* req = new req_msg(state_->get_term(), msg_type::request_vote_request, id_, it->second->get_id(), log_store_->last_entry().get_term(), log_store_->next_slot() - 1, state_->get_commit_idx());
+        req_msg* req = new req_msg(state_->get_term(), msg_type::request_vote_request, id_, it->second->get_id(), term_for_log(log_store_->next_slot() - 1), log_store_->next_slot() - 1, state_->get_commit_idx());
         l_.debug(sstrfmt("send %d to server %d with term %llu").fmt(req->get_type(), it->second->get_id(), state_->get_term()));
         it->second->send_req(req, resp_handler_);
     }
@@ -573,9 +572,10 @@ void raft_server::snapshot_and_compact(ulong committed_idx) {
                 ulong idx_to_compact = committed_idx - 1;
                 ulong log_term_to_compact = log_store_->term_at(idx_to_compact);
                 std::shared_ptr<snapshot> new_snapshot(new snapshot(idx_to_compact, log_term_to_compact, conf));
+                async_result<bool>::handler_type handler = (async_result<bool>::handler_type) std::bind(&raft_server::on_snapshot_completed, this, new_snapshot, std::placeholders::_1, std::placeholders::_2);
                 state_machine_.create_snapshot(
                     *new_snapshot,
-                    (async_result<bool>::handler_type)(std::bind(&raft_server::on_snapshot_completed, this, new_snapshot, std::placeholders::_1, std::placeholders::_2)));
+                    handler);
                 snapshot_in_action = false;
             }
         }
@@ -694,7 +694,8 @@ void raft_server::reconfigure(const std::shared_ptr<cluster_config>& new_config)
     }
 
     if (srv_added != nilptr && srv_added->get_id() != id_) {
-        peer* p = new peer(*srv_added, *ctx_, (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1));
+        timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
+        peer* p = new peer(*srv_added, *ctx_, exec);
         peers_.insert(std::make_pair(srv_added->get_id(), p));
         l_.info(sstrfmt("server %d is added to cluster").fmt(srv_added->get_id()));
         if (role_ == srv_role::leader) {
@@ -962,7 +963,8 @@ void raft_server::handle_ext_resp_err(rpc_exception& err) {
                 // reuse the heartbeat interval value to indicate when to stop retrying, as rpc backoff is the same
                 l_.debug("retry the request");
                 p->slow_down_hb();
-                std::shared_ptr<delayed_task> task(new timer_task<void>((timer_task<void>::executor)std::bind(&raft_server::on_retryable_req_err, this, p, req)));
+                timer_task<void>::executor exec = (timer_task<void>::executor)std::bind(&raft_server::on_retryable_req_err, this, p, req);
+                std::shared_ptr<delayed_task> task(new timer_task<void>(exec));
                 scheduler_.schedule(task, p->get_current_hb_interval());
             }
         }
@@ -1040,7 +1042,8 @@ resp_msg* raft_server::handle_add_srv_req(req_msg& req) {
 
     config_changing_ = true;
     conf_to_add_ = std::move(srv_conf);
-    srv_to_join_.reset(new peer(*conf_to_add_, *ctx_, (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1)));
+    timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
+    srv_to_join_.reset(new peer(*conf_to_add_, *ctx_, exec));
     invite_srv_to_join_cluster();
     resp->accept(log_store_->next_slot());
     return resp;
