@@ -344,6 +344,7 @@ private:
             }
 
             resp_msg* resp = handler->process_req(*(msg.first));
+	    if(stopped_) break;
             msg.second->set_result(resp, nilptr);
         }
 
