@@ -126,11 +126,12 @@ void asio_service_impl::flush_all_loggers(asio::error_code err) {
     if (!err && continue_.load() == 1) {
         log_flush_tm_.expires_after(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::hours(1000)));
         log_flush_tm_.async_wait(std::bind(&asio_service_impl::flush_all_loggers, this, std::placeholders::_1));
-        {
-            std::lock_guard<std::mutex> guard(logger_list_lock_);
-            for (std::list<fs_based_logger*>::iterator it = loggers_.begin(); it != loggers_.end(); ++it) {
-                (*it)->flush();
-            }
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(logger_list_lock_);
+        for (std::list<fs_based_logger*>::iterator it = loggers_.begin(); it != loggers_.end(); ++it) {
+            (*it)->flush();
         }
     }
 }

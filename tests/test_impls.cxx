@@ -321,7 +321,7 @@ private:
 class test_rpc_listener : public rpc_listener {
 public:
     test_rpc_listener(const std::string& port, msg_bus& bus)
-        : queue_(bus.get_queue(port)), stopped_(false){}
+        : queue_(bus.get_queue(port)), stopped_(false), stop_lock_(), stopped_cv_(){}
     __nocopy__(test_rpc_listener)
 public:
     virtual void listen(msg_handler* handler) __override__{
@@ -331,19 +331,30 @@ public:
 
     virtual void stop() {
         stopped_ = true;
+        queue_.enqueue(std::make_pair<req_msg*, std::shared_ptr<async_result<resp_msg*>>>(nilptr, std::shared_ptr<async_result<resp_msg*>>(nilptr)));
+        std::unique_lock<std::mutex> lock(stop_lock_);
+        stopped_cv_.wait(lock);
     }
 private:
     void do_listening(msg_handler* handler) {
         while (!stopped_) {
             msg_bus::message msg = queue_.dequeue();
+            if (msg.first == nilptr) {
+                break;
+            }
+
             resp_msg* resp = handler->process_req(*(msg.first));
             msg.second->set_result(resp, nilptr);
         }
+
+        stopped_cv_.notify_all();
     }
 
 private:
     msg_bus::msg_queue& queue_;
     bool stopped_;
+    std::mutex stop_lock_;
+    std::condition_variable stopped_cv_;
 };
 
 msg_bus bus;
