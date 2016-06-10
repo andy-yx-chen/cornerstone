@@ -77,12 +77,12 @@ namespace cornerstone {
             std::unique_lock<std::mutex> lock(stopping_lock_);
             ready_to_stop_cv_.wait(lock);
             if (election_task_) {
-                election_task_->cancel();
+                scheduler_.cancel(election_task_);
             }
 
             for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
                 if (it->second->get_hb_task()) {
-                    it->second->get_hb_task()->cancel();
+                    scheduler_.cancel(it->second->get_hb_task());
                 }
 
                 delete it->second;
