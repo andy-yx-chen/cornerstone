@@ -23,7 +23,7 @@ I know it's lack of documentations, I will try my best, but if you can help, let
 
 For how to use the code, please refer to tests/test_impls.cxx for interfaces that you need to implement, for log_store and state_machine implementations, it's **your own resposibility to take care of locking**.
 
-It's verified on Windows and FreeBSD, for Linux, I may do it later.
+It could be built on Windows (Makefile.win, nmake), Linux (Makefile.lx, gnu make) and FreeBSD (Makefile.bsd, pmake)
 
 please write [me](mailto:andy.yx.chen@outlook.com) if you have any question about using this 
 

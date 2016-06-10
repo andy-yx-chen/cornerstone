@@ -179,6 +179,12 @@
     <ClCompile Include="tests\test_impls.cxx">
       <Filter>Source Files\tests</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_logger.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\timer.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">

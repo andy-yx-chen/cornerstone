@@ -46,7 +46,7 @@ namespace cornerstone {
         private:
             void write_log(const std::string& level, const std::string& log_line);
         private:
-	    cornerstone::asio_service_impl& svc_impl_;
+	        cornerstone::asio_service_impl& svc_impl_;
             cornerstone::asio_service::log_level level_;
             std::ofstream fs_;
             std::queue<std::string> buffer_;
