@@ -1244,6 +1244,9 @@ void raft_server::commit_in_bg() {
                 std::unique_lock<std::mutex> lock(commit_lock_);
                 commit_cv_.wait(lock);
                 if (stopping_) {
+                    lock.unlock();
+                    lock.release();
+                    ready_to_stop_cv_.notify_all();
                     return;
                 }
 

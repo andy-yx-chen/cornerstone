@@ -32,6 +32,8 @@ namespace cornerstone {
             lock_(),
             commit_lock_(),
             commit_cv_(),
+            stopping_lock_(),
+            ready_to_stop_cv_(),
             resp_handler_((rpc_handler)std::bind(&raft_server::handle_peer_resp, this, std::placeholders::_1, std::placeholders::_2)),
             ex_resp_handler_((rpc_handler)std::bind(&raft_server::handle_ext_resp, this, std::placeholders::_1, std::placeholders::_2)){
             uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
@@ -72,6 +74,8 @@ namespace cornerstone {
             recur_lock(lock_);
             stopping_ = true;
             commit_cv_.notify_all();
+            std::unique_lock<std::mutex> lock(stopping_lock_);
+            ready_to_stop_cv_.wait(lock);
             if (election_task_) {
                 election_task_->cancel();
             }
@@ -165,6 +169,8 @@ namespace cornerstone {
         std::recursive_mutex lock_;
         std::mutex commit_lock_;
         std::condition_variable commit_cv_;
+        std::mutex stopping_lock_;
+        std::condition_variable ready_to_stop_cv_;
         rpc_handler resp_handler_;
         rpc_handler ex_resp_handler_;
     };
