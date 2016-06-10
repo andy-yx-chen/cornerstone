@@ -11,14 +11,10 @@ namespace cornerstone {
     namespace impls {
         class fs_based_logger : public logger {
         public:
-            fs_based_logger(const std::string& log_file, cornerstone::asio_service::log_level level)
-                : level_(level), fs_(log_file), buffer_(), lock_() {}
+            fs_based_logger(asio_service_impl& impl, const std::string& log_file, cornerstone::asio_service::log_level level)
+                : svc_impl_(impl), level_(level), fs_(log_file), buffer_(), lock_() {}
 
-            virtual ~fs_based_logger() {
-                flush();
-                fs_.flush();
-                fs_.close();
-            }
+            virtual ~fs_based_logger();
 
             __nocopy__(fs_based_logger)
         public:
@@ -50,6 +46,7 @@ namespace cornerstone {
         private:
             void write_log(const std::string& level, const std::string& log_line);
         private:
+	    cornerstone::asio_service_impl& svc_impl_;
             cornerstone::asio_service::log_level level_;
             std::ofstream fs_;
             std::queue<std::string> buffer_;
@@ -64,7 +61,7 @@ namespace cornerstone {
 
     private:
         void stop();
-
+	void remove_logger(impls::fs_based_logger* logger);
         void worker_entry();
         void flush_all_loggers(asio::error_code err);
 
@@ -74,7 +71,11 @@ namespace cornerstone {
         std::atomic_int continue_;
         std::mutex logger_list_lock_;
         std::list<impls::fs_based_logger*> loggers_;
+	bool stopping_;
+	std::mutex stopping_lock_;
+	std::condition_variable stopping_cv_;
         friend asio_service;
+	friend impls::fs_based_logger;
     };
 }
 
@@ -94,7 +95,7 @@ void _timer_handler_(std::shared_ptr<delayed_task>& task, asio::error_code err) 
 
 
 asio_service_impl::asio_service_impl()
-    : io_svc_(), log_flush_tm_(io_svc_), continue_(1), logger_list_lock_(), loggers_() {
+    : io_svc_(), log_flush_tm_(io_svc_), continue_(1), logger_list_lock_(), loggers_(), stopping_(false), stopping_lock_(), stopping_cv_() {
     // set expires_after to a very large value so that this will not affect the overall performance
     log_flush_tm_.expires_after(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)));
     log_flush_tm_.async_wait(std::bind(&asio_service_impl::flush_all_loggers, this, std::placeholders::_1));
@@ -111,6 +112,15 @@ asio_service_impl::asio_service_impl()
 
 asio_service_impl::~asio_service_impl() {
     stop();
+}
+
+void asio_service_impl::remove_logger(fs_based_logger* logger){
+    auto_lock(logger_list_lock_);
+    std::list<fs_based_logger*>::iterator it = loggers_.begin();
+    for(; it != loggers_.end() && *it != logger; ++it);
+    if(it != loggers_.end()){
+	loggers_.erase(it);
+    }
 }
 
 void asio_service_impl::worker_entry() {
@@ -134,12 +144,21 @@ void asio_service_impl::flush_all_loggers(asio::error_code err) {
             (*it)->flush();
         }
     }
+
+    if(stopping_){
+	stopping_cv_.notify_all();
+    }
 }
 
 void asio_service_impl::stop() {
     int running = 1;
     if (continue_.compare_exchange_strong(running, 0)) {
-        log_flush_tm_.cancel();
+	std::unique_lock<std::mutex> lock(stopping_lock_);
+	stopping_ = true;
+	log_flush_tm_.cancel();
+	stopping_cv_.wait(lock);
+	lock.unlock();
+	lock.release();
     }
 }
 
@@ -157,6 +176,13 @@ void fs_based_logger::flush() {
         fs_ << line << std::endl;
         backup.pop();
     }
+}
+
+fs_based_logger::~fs_based_logger() {
+    flush();
+    fs_.flush();
+    fs_.close();
+    svc_impl_.remove_logger(this);
 }
 
 void fs_based_logger::write_log(const std::string& level, const std::string& log_line) {
@@ -211,7 +237,7 @@ rpc_client* asio_service::create_client(const std::string& endpoint) {
 }
 
 logger* asio_service::create_logger(log_level level, const std::string& log_file) {
-    fs_based_logger* l = new fs_based_logger(log_file, level);
+    fs_based_logger* l = new fs_based_logger(*impl_, log_file, level);
     {
         std::lock_guard<std::mutex> guard(impl_->logger_list_lock_);
         impl_->loggers_.push_back(l);

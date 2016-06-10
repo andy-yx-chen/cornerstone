@@ -530,11 +530,11 @@ void raft_server::snapshot_and_compact(ulong committed_idx) {
     try {
         bool f = false;
         if (ctx_->params_->snapshot_distance_ > 0
-            && (committed_idx - log_store_->start_index()) > ctx_->params_->snapshot_distance_
+            && (committed_idx - log_store_->start_index()) > (ulong)ctx_->params_->snapshot_distance_
             && snp_in_progress_.compare_exchange_strong(f, true)) {
             snapshot_in_action = true;
             std::unique_ptr<snapshot> snp(state_machine_.last_snapshot());
-            if (snp && (committed_idx - snp->get_last_log_idx()) < ctx_->params_->snapshot_distance_) {
+            if (snp && (committed_idx - snp->get_last_log_idx()) < (ulong)ctx_->params_->snapshot_distance_) {
                 l_.info(sstrfmt("a very recent snapshot is available at index %llu, will skip this one").fmt(snp->get_last_log_idx()));
                 snp_in_progress_.store(false);
                 snapshot_in_action = false;
