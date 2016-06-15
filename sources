@@ -5,7 +5,14 @@ USE_MSVCRT=YES
 USE_UNICODE=NO
 DEBUG=YES
 cflags=$(cflags) /D_WIN32_WINNT=0x0501
-SOURCES=raft_server.cxx
+SOURCES=raft_server.cxx\
+	asio_service.cxx\
+	buffer.cxx\
+	cluster_config.cxx\
+	peer.cxx\
+	snapshot.cxx\
+	snapshot_sync_req.cxx\
+	srv_config.cxx
 
 asio: asio/asio/include/asio.hpp
 

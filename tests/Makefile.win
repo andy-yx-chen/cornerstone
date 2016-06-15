@@ -105,29 +105,37 @@ cflags=$(cflags) /MD
 
 TARGETPDB=$(TARGETNAME).pdb
 
-!if "$(TARGETTYPE)" == "exe"
-_TARGETNAME=$(TARGETNAME).exe
-!else
-_TARGETNAME=$(TARGETNAME).dll
-!endif
-
-!if "$(UMTYPE)" == "console"
-LINKFLAGS=$(conlflags)
-USE_LIBS=$(USE_LIBS) $(conlibs)
-!elseif "$(UMTYPE)" == "windows"
-LINKFLAGS=$(guilflags)
-USE_LIBS=$(USE_LIBS) $(guilibs)
-!else
-LINKFLAGS=$(dlllflags)
-USE_LIBS=$(USE_LIBS) $(conlibs)
-!endif
-
 #always enable debug for linking
 LINKFLAGS=$(LINKFLAGS) /DEBUG
 
-#for release version, we need private symbol
-!ifndef DEBUG
+!if "$(UMTYPE)" == "console"
+LINKFLAGS=$(LINKFLAGS) $(conlflags) /pdb:"$(TARGETPATH)\$(TARGETPDB)"
+USE_LIBS=$(USE_LIBS) $(conlibs)
+!elseif "$(UMTYPE)" == "windows"
+LINKFLAGS=$(LINKFLAGS) $(guilflags) /pdb:"$(TARGETPATH)\$(TARGETPDB)"
+USE_LIBS=$(USE_LIBS) $(guilibs)
+!elseif "$(UMTYPE)" == "dll"
+LINKFLAGS=$(LINKFLAGS) $(dlllflags) /pdb:"$(TARGETPATH)\$(TARGETPDB)"
+USE_LIBS=$(USE_LIBS) $(conlibs)
+TARGETTYPE=dll
+!else
+link=lib.exe
+TARGETTYPE=lib
+LINKFLAGS=
+!endif
+
+!if "$(UMTYPE)" != "lib"
+!   ifndef DEBUG
 LINKFLAGS=$(LINKFLAGS) /PDBSTRIPPED:"$(TARGETPATH)\$(TARGETNAME).pri"
+!   endif
+!endif
+
+!if "$(TARGETTYPE)" == "exe"
+_TARGETNAME=$(TARGETNAME).exe
+!elseif "$(TARGETTYPE)" == "dll"
+_TARGETNAME=$(TARGETNAME).dll
+!elseif "$(TARGETTYPE)" == "lib"
+_TARGETNAME=$(TARGETNAME).lib
 !endif
 
 !if "$(INCLUDES)" != ""
@@ -135,18 +143,18 @@ cflags=$(cflags) /I"$(INCLUDES)"
 !endif
 
 !if DEFINED(LIBS) && "$(LIBS)" != ""
-LINKFLAGS=$(LINKFLAGS) $(LIBS)
+LINKFLAGS=$(LINKFLAGS) /LIBPATH:"$(LIBS)"
 !endif
 
 all:$(_TARGETNAME)
 
 $(_TARGETNAME):$(OBJS)
-    $(link) $(LINKFLAGS) /out:"$(_TARGETNAME)" /pdb:"$(TARGETPATH)\$(TARGETPDB)" $(USE_LIBS) $**
+    $(link) $(LINKFLAGS) /out:"$(_TARGETNAME)" $(USE_LIBS) $**
     @for %i in ($(SOURCES)) do (move /Y %~dpni.obj "$(TARGETPATH)\%~ni.obj")
-    @copy /Y *.pdb "$(TARGETPATH)\"
-    @del /Q *.pdb
-    @copy /Y *.ilk "$(TARGETPATH)\"
-    @del /Q *.ilk
+    @-copy /Y *.pdb "$(TARGETPATH)\"
+    @-del /Q *.pdb
+    @-copy /Y *.ilk "$(TARGETPATH)\"
+    @-del /Q *.ilk
     @copy /Y $(_TARGETNAME) "$(TARGETPATH)\$(_TARGETNAME)"
     @del /Q $(_TARGETNAME)
 .c.obj:
