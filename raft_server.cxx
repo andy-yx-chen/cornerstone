@@ -773,7 +773,7 @@ resp_msg* raft_server::handle_install_snapshot_req(req_msg& req) {
     }
 
     std::unique_ptr<snapshot_sync_req> sync_req(snapshot_sync_req::deserialize(entries[0]->get_buf()));
-    if (sync_req->get_snapshot().get_last_log_idx() < state_->get_commit_idx()) {
+    if (sync_req->get_snapshot().get_last_log_idx() <= state_->get_commit_idx()) {
         l_.warn(sstrfmt("received a snapshot (%llu) that is older than current log store").fmt(sync_req->get_snapshot().get_last_log_idx()));
         return resp;
     }

@@ -180,10 +180,10 @@
       <Filter>Source Files\tests</Filter>
     </ClCompile>
     <ClCompile Include="tests\test_logger.cxx">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\tests</Filter>
     </ClCompile>
     <ClCompile Include="tests\timer.cxx">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
