@@ -130,6 +130,7 @@
     <ClInclude Include="cornerstone.hxx" />
     <ClInclude Include="delayed_task.hxx" />
     <ClInclude Include="delayed_task_scheduler.hxx" />
+    <ClInclude Include="fs_log_store.hxx" />
     <ClInclude Include="logger.hxx" />
     <ClInclude Include="log_entry.hxx" />
     <ClInclude Include="log_store.hxx" />
@@ -162,6 +163,7 @@
     <ClCompile Include="asio_service.cxx" />
     <ClCompile Include="buffer.cxx" />
     <ClCompile Include="cluster_config.cxx" />
+    <ClCompile Include="fs_log_store.cxx" />
     <ClCompile Include="peer.cxx" />
     <ClCompile Include="raft_server.cxx" />
     <ClCompile Include="snapshot.cxx" />

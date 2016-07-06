@@ -97,5 +97,23 @@ void test_serialization() {
     assert(snp->get_last_config()->get_servers().size() == snp3.get_last_config()->get_servers().size());
     assert(snp->get_last_config()->get_log_idx() == snp3.get_last_config()->get_log_idx());
     assert(snp->get_last_config()->get_prev_log_idx() == snp3.get_last_config()->get_prev_log_idx());
+
+    // test log entry serialization and deserialization
+    buffer* data = buffer::alloc(24 + rnd() % 100);
+    for (size_t i = 0; i < data->size(); ++i) {
+        data->put(static_cast<byte>(rnd() % 255));
+    }
+
+    std::unique_ptr<log_entry> entry(new log_entry(long_val(rnd()), data, static_cast<log_val_type>(1 + rnd() % 5)));
+    buffer::safe_buffer buf2 = buffer::make_safe(entry->serialize());
+    std::unique_ptr<log_entry> entry1(log_entry::deserialize(*buf2));
+    assert(entry->get_term() == entry1->get_term());
+    assert(entry->get_val_type() == entry1->get_val_type());
+    assert(entry->get_buf().size() == entry1->get_buf().size());
+    for (size_t i = 0; i < entry->get_buf().size(); ++i) {
+        byte b1 = entry->get_buf().get_byte();
+        byte b2 = entry1->get_buf().get_byte();
+        assert(b1 == b2);
+    }
 }
 

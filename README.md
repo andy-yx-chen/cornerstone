@@ -16,14 +16,16 @@ The core algorithm is implemented based on the TLA+ spec, whose safety and liven
 it's always safer to implement such kind of algorithm based on Math description other than natural languge description.
 there should be an auto conversion from TLA+ to programming languages, even they are talking things in different ways, but they are identical
 
-> In the example of dmprinter (Distributed Message Printer), it takes about 4ms to commit a message, while in Active-Active scenario (sending messages to all three instances of dmprinter), it takes about 9ms to commit a message, the data is collected by CLT (Central Limitation Theory) with 95% of confidence level.
-
 ## Code Structure
 I know it's lack of documentations, I will try my best, but if you can help, let me know. This project has core algorithm implementation only for now, we also rely on asio library for timer and __in future__ for tcp based cli/srv communications
 
 For how to use the code, please refer to tests/test_impls.cxx for interfaces that you need to implement, for log_store and state_machine implementations, it's **your own resposibility to take care of locking**.
 
 It could be built on Windows (Makefile.win, nmake), Linux (Makefile.lx, gnu make) and FreeBSD (Makefile.bsd, pmake)
+
+## Coding Hints
+
+In all the code (since shared_ptr is not free, I try to avoid it as much as possible), if a pointer is passed, that means the callee need to do the cleanup, if a pointer is returned, that means the caller need to take care of it.
 
 please write [me](mailto:andy.yx.chen@outlook.com) if you have any question about using this 
 

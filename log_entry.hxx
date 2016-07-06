@@ -26,6 +26,23 @@ namespace cornerstone{
             return *buff_;
         }
 
+        buffer* serialize() {
+            buff_->pos(0);
+            buffer* buf = buffer::alloc(sizeof(ulong) + sizeof(char) + buff_->size());
+            buf->put(term_);
+            buf->put((static_cast<byte>(value_type_)));
+            buf->put(*buff_);
+            buf->pos(0);
+            return buf;
+        }
+
+        static log_entry* deserialize(buffer& buf) {
+            ulong term = buf.get_ulong();
+            log_val_type t = static_cast<log_val_type>(buf.get_byte());
+            buffer* data = buffer::copy(buf);
+            return new log_entry(term, data, t);
+        }
+
     private:
         ulong term_;
         log_val_type value_type_;

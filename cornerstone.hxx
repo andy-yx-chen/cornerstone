@@ -19,6 +19,7 @@
 #include <random>
 #include <chrono>
 #include <thread>
+#include <fstream>
 
 // uv defines max and min as marcos
 #ifdef max
@@ -64,4 +65,5 @@
 #include "peer.hxx"
 #include "raft_server.hxx"
 #include "asio_service.hxx"
+#include "fs_log_store.hxx"
 #endif // _CORNERSTONE_HXX_
