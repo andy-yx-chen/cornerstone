@@ -15,6 +15,7 @@ namespace cornerstone {
 
         ref_counter_t* p_int = new (p) ref_counter_t(0);
         T* p_t = new (reinterpret_cast<any_ptr>(p_int + 1)) T(args...);
+        (void)p_t;
         return ptr<T>(p);
     }
 
