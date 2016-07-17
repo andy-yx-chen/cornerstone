@@ -49,6 +49,7 @@ namespace cornerstone {
         ptr(const ptr<T1>& other)
             : p_(other.p_) {
             T* p = other.get();
+            (void)p;
             _inc_ref();
         }
 
@@ -61,6 +62,7 @@ namespace cornerstone {
         ptr(ptr<T1>&& other)
             : p_(other.p_) {
             T* p = other.get();
+            (void)p;
             other.p_ = nilptr;
         }
 
@@ -78,6 +80,7 @@ namespace cornerstone {
         template<typename T1>
         ptr<T>& operator = (const ptr<T1>& other) {
             T* p = other.get();
+            (void)p;
             _dec_ref_and_free();
             p_ = other.p_;
             _inc_ref();
