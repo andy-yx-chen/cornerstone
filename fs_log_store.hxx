@@ -5,8 +5,7 @@ namespace cornerstone {
     class log_store_buffer;
     class fs_log_store : public log_store {
     public:
-        fs_log_store(const std::string& log_folder, logger& l, int buf_size = -1)
-            : l_(l), idx_file_(), data_file_(), start_idx_file_(), entries_in_store_(0), start_idx_(1), log_folder_(log_folder), store_lock_(), buf_(nilptr), buf_size_(buf_size) {}
+        fs_log_store(const std::string& log_folder, int buf_size = -1);
         ~fs_log_store();
 
         __nocopy__(fs_log_store)
@@ -26,13 +25,13 @@ namespace cornerstone {
         * The last log entry in store
         * @return a dummy constant entry with value set to null and term set to zero if no log entry in store
         */
-        virtual log_entry& last_entry() const;
+        virtual ptr<log_entry> last_entry() const;
 
         /**
         * Appends a log entry to store
         * @param entry
         */
-        virtual void append(log_entry& entry);
+        virtual ulong append(log_entry& entry);
 
         /**
         * Over writes a log entry at index of {@code index}
@@ -47,14 +46,14 @@ namespace cornerstone {
         * @param end, the end index of log entries (exclusive)
         * @return the log entries between [start, end)
         */
-        virtual std::vector<log_entry*>* log_entries(ulong start, ulong end);
+        virtual ptr<std::vector<ptr<log_entry>>> log_entries(ulong start, ulong end);
 
         /**
         * Gets the log entry at the specified index
         * @param index, starts from 1
         * @return the log entry or null if index >= this->next_slot()
         */
-        virtual log_entry* entry_at(ulong index);
+        virtual ptr<log_entry> entry_at(ulong index);
 
         /**
         * Gets the term for the log entry at the specified index
@@ -70,7 +69,7 @@ namespace cornerstone {
         * @param cnt
         * @return log pack
         */
-        virtual buffer* pack(ulong index, int32 cnt);
+        virtual ptr<buffer> pack(ulong index, int32 cnt);
 
         /**
         * Apply the log pack to current log store, starting from index
@@ -85,15 +84,18 @@ namespace cornerstone {
         * @return compact successfully or not
         */
         virtual bool compact(ulong last_log_index);
+
+        void close();
     private:
-        logger& l_;
+        void fill_buffer();
+    private:
         std::fstream idx_file_;
         std::fstream data_file_;
         std::fstream start_idx_file_;
         ulong entries_in_store_;
         ulong start_idx_;
         std::string log_folder_;
-        std::recursive_mutex store_lock_;
+        mutable std::recursive_mutex store_lock_;
         log_store_buffer* buf_;
         int buf_size_;
     };

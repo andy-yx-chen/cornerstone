@@ -1,48 +1,50 @@
 #include "cornerstone.hxx"
 
-#define __is_big_block(p) (1 & (ulong)(p))
+#define __is_big_block(p) (0x80000000 & *((uint*)(p)))
 #define __init_block(p, s, t) ((t*)(p))[0] = (t)s;\
     ((t*)(p))[1] = 0
 #define __init_s_block(p, s) __init_block(p, s, ushort)
 #define __init_b_block(p, s) __init_block(p, s, uint);\
-    (p) = (void*)((byte*)(p) + 1)
+    *((uint*)(p)) |= 0x80000000
 #define __pos_of_s_block(p) ((ushort*)(p))[1]
-#define __pos_of_b_block(p) ((uint*)((byte*)(p) - 1))[1]
-#define __size_of_block(p) (__is_big_block(p)) ? *((uint*)((byte*)(p) - 1)) : *((ushort*)(p))
+#define __pos_of_b_block(p) ((uint*)(p))[1]
+#define __size_of_block(p) (__is_big_block(p)) ? (*((uint*)(p)) ^ 0x80000000) : *((ushort*)(p))
 #define __pos_of_block(p) (__is_big_block(p)) ? __pos_of_b_block(p) : __pos_of_s_block(p)
 #define __mv_fw_block(p, d) if(__is_big_block(p)){\
-    ((uint*)((byte*)(p) - 1))[1] += (d);\
+    ((uint*)(p))[1] += (d);\
     }\
     else{\
     ((ushort*)(p))[1] += (ushort)(d);\
     }
 #define __set_block_pos(p, pos) if(__is_big_block(p)){\
-    ((uint*)((byte*)(p) - 1))[1] = (pos);\
+    ((uint*)(p))[1] = (pos);\
     }\
     else{\
     ((ushort*)(p))[1] = (ushort)(pos);\
     }
-#define __data_of_block(p) (__is_big_block(p)) ? (byte*) (((byte*)(((uint*)((byte*)(p) - 1)) + 2)) + __pos_of_b_block(p)) : (byte*) (((byte*)(((ushort*)p) + 2)) + __pos_of_s_block(p))
+#define __data_of_block(p) (__is_big_block(p)) ? (byte*) (((byte*)(((uint*)(p)) + 2)) + __pos_of_b_block(p)) : (byte*) (((byte*)(((ushort*)p) + 2)) + __pos_of_s_block(p))
 using namespace cornerstone;
 
-buffer* buffer::alloc(const size_t size) {
-    if (size > std::numeric_limits<ushort>::max()) {
-        void* ptr = ::malloc(size + sizeof(uint) * 2);
-        __init_b_block(ptr, size);
-        return (buffer*)ptr;
+ptr<buffer> buffer::alloc(const size_t size) {
+    if (size >= 0x80000000) {
+        throw std::out_of_range("size exceed the max size that cornrestone::buffer could support");
     }
 
-    void* ptr = ::malloc(size + sizeof(ushort) * 2);
+    if (size >= 0x8000) {
+        ptr<buffer> buf = cs_alloc<buffer>(size + sizeof(uint) * 2);
+        any_ptr ptr = reinterpret_cast<any_ptr>(buf.get());
+        __init_b_block(ptr, size);
+        return buf;
+    }
+
+    ptr<buffer> buf = cs_alloc<buffer>(size + sizeof(ushort) * 2);
+    any_ptr ptr = reinterpret_cast<any_ptr>(buf.get());
     __init_s_block(ptr, size);
-    return (buffer*)ptr;
+    return buf;
 }
 
-void buffer::release(buffer* buf) {
-    ::free(__is_big_block(buf) ? (void*)(((ulong)buf) ^ 1) : buf);
-}
-
-buffer* buffer::copy(const buffer& buf) {
-    buffer* other = alloc(buf.size() - buf.pos());
+ptr<buffer> buffer::copy(const buffer& buf) {
+    ptr<buffer> other = alloc(buf.size() - buf.pos());
     other->put(buf);
     other->pos(0);
     return other;
@@ -187,4 +189,16 @@ void buffer::put(const buffer& buf) {
     byte* src = buf.data();
     ::memcpy(d, src, src_sz - src_p);
     __mv_fw_block(this, src_sz - src_p);
+}
+
+std::ostream& cornerstone::operator << (std::ostream& out, buffer& buf) {
+    out.write(reinterpret_cast<char*>(buf.data()), buf.size() - buf.pos());
+    return out;
+}
+
+std::istream& cornerstone::operator >> (std::istream& in, buffer& buf) {
+    char* data = reinterpret_cast<char*>(buf.data());
+    int size = buf.size() - buf.pos();
+    in.read(data, size);
+    return in;
 }

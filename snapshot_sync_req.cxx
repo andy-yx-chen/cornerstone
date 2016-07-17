@@ -2,12 +2,12 @@
 
 using namespace cornerstone;
 
-snapshot_sync_req* snapshot_sync_req::deserialize(buffer& buf) {
-    std::shared_ptr<snapshot> snp(snapshot::deserialize(buf));
+ptr<snapshot_sync_req> snapshot_sync_req::deserialize(buffer& buf) {
+    ptr<snapshot> snp(snapshot::deserialize(buf));
     ulong offset = buf.get_ulong();
     bool done = buf.get_byte() == 1;
     byte* src = buf.data();
-    buffer* b;
+    ptr<buffer> b;
     if (buf.pos() < buf.size()) {
         size_t sz = buf.size() - buf.pos();
         b = buffer::alloc(sz);
@@ -17,13 +17,13 @@ snapshot_sync_req* snapshot_sync_req::deserialize(buffer& buf) {
         b = buffer::alloc(0);
     }
 
-    return new snapshot_sync_req(snp, offset, b, done);
+    return cs_new<snapshot_sync_req>(snp, offset, b, done);
 }
 
-buffer* snapshot_sync_req::serialize() {
-    buffer::safe_buffer sbuf(buffer::make_safe(snapshot_->serialize()));
-    buffer* buf = buffer::alloc(sbuf->size() + sz_ulong + sz_byte + (data_->size() - data_->pos()));
-    buf->put(*sbuf);
+ptr<buffer> snapshot_sync_req::serialize() {
+    ptr<buffer> snp_buf = snapshot_->serialize();
+    ptr<buffer> buf = buffer::alloc(snp_buf->size() + sz_ulong + sz_byte + (data_->size() - data_->pos()));
+    buf->put(*snp_buf);
     buf->put(offset_);
     buf->put(done_ ? (byte)1 : (byte)0);
     buf->put(*data_);

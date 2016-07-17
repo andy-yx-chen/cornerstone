@@ -12,7 +12,7 @@ namespace cornerstone {
         virtual void save_snapshot_data(snapshot& s, const ulong offset, buffer& data) = 0;
         virtual bool apply_snapshot(snapshot& s) = 0;
         virtual int read_snapshot_data(snapshot& s, const ulong offset, buffer& data) = 0;
-        virtual snapshot* last_snapshot() = 0;
+        virtual ptr<snapshot> last_snapshot() = 0;
         virtual void create_snapshot(snapshot& s, async_result<bool>::handler_type& when_done) = 0;
     };
 }

@@ -33,6 +33,7 @@
 #include "pp_util.hxx"
 #include "strfmt.hxx"
 #include "basic_types.hxx"
+#include "ptr.hxx"
 #include "raft_params.hxx"
 #include "msg_type.hxx"
 #include "buffer.hxx"

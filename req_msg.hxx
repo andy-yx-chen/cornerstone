@@ -9,9 +9,6 @@ namespace cornerstone {
         }
         
         virtual ~req_msg() __override__ {
-            for (size_t i = 0; i < log_entries_.size(); ++i) {
-                delete log_entries_[i];
-            }
         }
 
     __nocopy__(req_msg)
@@ -29,7 +26,7 @@ namespace cornerstone {
             return commit_idx_;
         }
 
-        std::vector<log_entry*>& log_entries() {
+        std::vector<ptr<log_entry>>& log_entries() {
             return log_entries_;
         }
 
@@ -37,7 +34,7 @@ namespace cornerstone {
         ulong last_log_term_;
         ulong last_log_idx_;
         ulong commit_idx_;
-        std::vector<log_entry*> log_entries_;
+        std::vector<ptr<log_entry>> log_entries_;
     };
 }
 

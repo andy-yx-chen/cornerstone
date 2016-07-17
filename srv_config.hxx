@@ -10,7 +10,7 @@ namespace cornerstone {
         __nocopy__(srv_config)
 
     public:
-        static srv_config* deserialize(buffer& buf);
+        static ptr<srv_config> deserialize(buffer& buf);
 
         int32 get_id() const {
             return id_;
@@ -20,7 +20,7 @@ namespace cornerstone {
             return endpoint_;
         }
 
-        buffer* serialize();
+        ptr<buffer> serialize();
     private:
         int32 id_;
         std::string endpoint_;

@@ -3,20 +3,12 @@
 
 namespace cornerstone {
     class buffer {
+        buffer() = delete;
         __nocopy__(buffer)
     public:
-        typedef std::shared_ptr<buffer> safe_buffer;
-        static void release(buffer* buff);
-        static buffer* alloc(const size_t size);
-        static buffer* copy(const buffer& buf);
-        static safe_buffer safe_alloc(const size_t size) {
-            return std::move(safe_buffer(alloc(size), &buffer::release));
-        }
-
-        static safe_buffer make_safe(buffer* buff) {
-            return std::move(safe_buffer(buff, &buffer::release));
-        }
-
+        static ptr<buffer> alloc(const size_t size);
+        static ptr<buffer> copy(const buffer& buf);
+        
         size_t size() const;
         size_t pos() const;
         void pos(size_t p);
@@ -33,5 +25,8 @@ namespace cornerstone {
         void put(const std::string& str);
         void put(const buffer& buf);
     };
+
+    std::ostream& operator << (std::ostream& out, buffer& buf);
+    std::istream& operator >> (std::istream& in, buffer& buf);
 }
 #endif //_BUFFER_HXX_

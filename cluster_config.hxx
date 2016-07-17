@@ -8,17 +8,14 @@ namespace cornerstone {
             : log_idx_(log_idx), prev_log_idx_(prev_log_idx), servers_() {}
 
         ~cluster_config() {
-            for (srv_itor it = servers_.begin(); it != servers_.end(); ++it) {
-                delete (*it);
-            }
         }
 
         __nocopy__(cluster_config)
     public:
-        typedef std::list<srv_config*>::iterator srv_itor;
-        typedef std::list<srv_config*>::const_iterator const_srv_itor;
+        typedef std::list<ptr<srv_config>>::iterator srv_itor;
+        typedef std::list<ptr<srv_config>>::const_iterator const_srv_itor;
 
-        static cluster_config* deserialize(buffer& buf);
+        static ptr<cluster_config> deserialize(buffer& buf);
 
         ulong get_log_idx() const {
             return log_idx_;
@@ -33,25 +30,25 @@ namespace cornerstone {
             return prev_log_idx_;
         }
 
-        std::list<srv_config*>& get_servers() {
+        std::list<ptr<srv_config>>& get_servers() {
             return servers_;
         }
 
-        const srv_config*  get_server(int id) const {
+        ptr<srv_config>  get_server(int id) const {
             for (const_srv_itor it = servers_.begin(); it != servers_.end(); ++it) {
                 if ((*it)->get_id() == id) {
                     return *it;
                 }
             }
 
-            return nilptr;
+            return ptr<srv_config>();
         }
 
-        buffer* serialize();
+        ptr<buffer> serialize();
     private:
         ulong log_idx_;
         ulong prev_log_idx_;
-        std::list<srv_config*> servers_;
+        std::list<ptr<srv_config>> servers_;
     };
 }
 

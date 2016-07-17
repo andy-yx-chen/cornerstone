@@ -19,7 +19,7 @@ namespace cornerstone {
             ctx_(ctx),
             scheduler_(ctx->scheduler_),
             election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
-            election_task_(nilptr),
+            election_task_(),
             peers_(),
             role_(srv_role::follower),
             state_(ctx->state_mgr_.read_state()),
@@ -27,8 +27,8 @@ namespace cornerstone {
             state_machine_(ctx->state_machine_),
             l_(ctx->logger_),
             config_(ctx->state_mgr_.load_config()),
-            srv_to_join_(nilptr),
-            conf_to_add_(nilptr),
+            srv_to_join_(),
+            conf_to_add_(),
             lock_(),
             commit_lock_(),
             commit_cv_(),
@@ -41,25 +41,25 @@ namespace cornerstone {
             std::uniform_int_distribution<int32> distribution(ctx->params_->election_timeout_lower_bound_, ctx->params_->election_timeout_upper_bound_);
             rand_timeout_ = std::bind(distribution, engine);
             if (!state_) {
-                state_.reset(new srv_state());
+                state_ = cs_new<srv_state>();
                 state_->set_commit_idx(0);
                 state_->set_term(0);
                 state_->set_voted_for(-1);
             }
 
             for (ulong i = std::max(state_->get_commit_idx() + 1, log_store_->start_index()); i < log_store_->next_slot(); ++i) {
-                std::unique_ptr<log_entry> entry(log_store_->entry_at(i));
+                ptr<log_entry> entry(log_store_->entry_at(i));
                 if (entry->get_val_type() == log_val_type::conf) {
-                    config_.reset(cluster_config::deserialize(entry->get_buf()));
+                    config_ = cluster_config::deserialize(entry->get_buf());
                     break;
                 }
             }
 
-            std::list<srv_config*>& srvs(config_->get_servers());
+            std::list<ptr<srv_config>>& srvs(config_->get_servers());
             for (cluster_config::srv_itor it = srvs.begin(); it != srvs.end(); ++it) {
                 if ((*it)->get_id() != id_) {
          	        timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
-                    peers_.insert(std::make_pair((*it)->get_id(), new peer(**it, *ctx_, exec)));
+                    peers_.insert(std::make_pair((*it)->get_id(), cs_new<peer, srv_config&, context&, timer_task<peer&>::executor&>(**it, *ctx_, exec)));
                 }
             }
 
@@ -73,8 +73,11 @@ namespace cornerstone {
         virtual ~raft_server() {
             recur_lock(lock_);
             stopping_ = true;
+            std::unique_lock<std::mutex> commit_lock(commit_lock_);
             commit_cv_.notify_all();
             std::unique_lock<std::mutex> lock(stopping_lock_);
+            commit_lock.unlock();
+            commit_lock.release();
             ready_to_stop_cv_.wait(lock);
             if (election_task_) {
                 scheduler_.cancel(election_task_);
@@ -84,46 +87,44 @@ namespace cornerstone {
                 if (it->second->get_hb_task()) {
                     scheduler_.cancel(it->second->get_hb_task());
                 }
-
-                delete it->second;
             }
         }
 
     __nocopy__(raft_server)
     
     public:
-        virtual resp_msg* process_req(req_msg& req) __override__;
+        virtual ptr<resp_msg> process_req(req_msg& req) __override__;
 
     private:
-        typedef std::unordered_map<int32, peer*>::const_iterator peer_itor;
+        typedef std::unordered_map<int32, ptr<peer>>::const_iterator peer_itor;
 
     private:
-        resp_msg* handle_append_entries(req_msg& req);
-        resp_msg* handle_vote_req(req_msg& req);
-        resp_msg* handle_cli_req(req_msg& req);
-        resp_msg* handle_extended_msg(req_msg& req);
-        resp_msg* handle_install_snapshot_req(req_msg& req);
-        resp_msg* handle_rm_srv_req(req_msg& req);
-        resp_msg* handle_add_srv_req(req_msg& req);
-        resp_msg* handle_log_sync_req(req_msg& req);
-        resp_msg* handle_join_cluster_req(req_msg& req);
-        resp_msg* handle_leave_cluster_req(req_msg& req);
+        ptr<resp_msg> handle_append_entries(req_msg& req);
+        ptr<resp_msg> handle_vote_req(req_msg& req);
+        ptr<resp_msg> handle_cli_req(req_msg& req);
+        ptr<resp_msg> handle_extended_msg(req_msg& req);
+        ptr<resp_msg> handle_install_snapshot_req(req_msg& req);
+        ptr<resp_msg> handle_rm_srv_req(req_msg& req);
+        ptr<resp_msg> handle_add_srv_req(req_msg& req);
+        ptr<resp_msg> handle_log_sync_req(req_msg& req);
+        ptr<resp_msg> handle_join_cluster_req(req_msg& req);
+        ptr<resp_msg> handle_leave_cluster_req(req_msg& req);
         bool handle_snapshot_sync_req(snapshot_sync_req& req);
         void request_vote();
         void request_append_entries();
         bool request_append_entries(peer& p);
-        void handle_peer_resp(resp_msg* resp, rpc_exception* err);
+        void handle_peer_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err);
         void handle_append_entries_resp(resp_msg& resp);
         void handle_install_snapshot_resp(resp_msg& resp);
         void handle_voting_resp(resp_msg& resp);
-        void handle_ext_resp(resp_msg* resp, rpc_exception* err);
+        void handle_ext_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err);
         void handle_ext_resp_err(rpc_exception& err);
-        req_msg* create_append_entries_req(peer& p);
-        req_msg* create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx);
+        ptr<req_msg> create_append_entries_req(peer& p);
+        ptr<req_msg> create_sync_snapshot_req(peer& p, ulong last_log_idx, ulong term, ulong commit_idx);
         void commit(ulong target_idx);
         void snapshot_and_compact(ulong committed_idx);
         bool update_term(ulong term);
-        void reconfigure(const std::shared_ptr<cluster_config>& new_config);
+        void reconfigure(const ptr<cluster_config>& new_config);
         void become_leader();
         void become_follower();
         void enable_hb_for_peer(peer& p);
@@ -135,8 +136,8 @@ namespace cornerstone {
         void invite_srv_to_join_cluster();
         void rm_srv_from_cluster(int32 srv_id);
         int get_snapshot_sync_block_size() const;
-        void on_snapshot_completed(std::shared_ptr<snapshot> s, bool result, std::exception* err);
-        void on_retryable_req_err(peer* p, req_msg* req);
+        void on_snapshot_completed(ptr<snapshot>& s, bool result, ptr<std::exception>& err);
+        void on_retryable_req_err(ptr<peer>& p, ptr<req_msg>& req);
         ulong term_for_log(ulong log_idx);
         void commit_in_bg();
     private:
@@ -155,17 +156,17 @@ namespace cornerstone {
         std::unique_ptr<context> ctx_;
         delayed_task_scheduler& scheduler_;
         timer_task<void>::executor election_exec_;
-        std::shared_ptr<delayed_task> election_task_;
-        std::unordered_map<int32, peer*> peers_;
+        ptr<delayed_task> election_task_;
+        std::unordered_map<int32, ptr<peer>> peers_;
         srv_role role_;
-        std::unique_ptr<srv_state> state_;
-        std::unique_ptr<log_store> log_store_;
+        ptr<srv_state> state_;
+        ptr<log_store> log_store_;
         state_machine& state_machine_;
         logger& l_;
         std::function<int32()> rand_timeout_;
-        std::shared_ptr<cluster_config> config_;
-        std::unique_ptr<peer> srv_to_join_;
-        std::unique_ptr<srv_config> conf_to_add_;
+        ptr<cluster_config> config_;
+        ptr<peer> srv_to_join_;
+        ptr<srv_config> conf_to_add_;
         std::recursive_mutex lock_;
         std::mutex commit_lock_;
         std::condition_variable commit_cv_;

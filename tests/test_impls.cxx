@@ -9,7 +9,7 @@ class in_mem_log_store : public log_store {
 public:
     in_mem_log_store()
         : log_entries_(), lock_() {
-        log_entries_.push_back(std::move(std::shared_ptr<log_entry>(new log_entry(0L, nilptr))));
+        log_entries_.push_back(ptr<log_entry>(cs_new<log_entry>(0L, buffer::alloc(0))));
     }
 
     __nocopy__(in_mem_log_store)
@@ -35,19 +35,20 @@ public:
     * The last log entry in store
     * @return a dummy constant entry with value set to null and term set to zero if no log entry in store
     */
-    virtual log_entry& last_entry() const {
+    virtual ptr<log_entry> last_entry() const {
         auto_lock(lock_);
-        return *log_entries_[log_entries_.size() - 1];
+        return log_entries_[log_entries_.size() - 1];
     }
 
     /**
     * Appends a log entry to store
     * @param entry
     */
-    virtual void append(log_entry& entry) {
+    virtual ulong append(log_entry& entry) {
         auto_lock(lock_);
-        std::shared_ptr<log_entry> item(new log_entry(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
+        ptr<log_entry> item(cs_new<log_entry>(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
         log_entries_.push_back(item);
+        return (ulong)(log_entries_.size() - 1);
     }
 
     /**
@@ -61,7 +62,7 @@ public:
             throw std::overflow_error("index out of range");
         }
         
-        std::shared_ptr<log_entry> item(new log_entry(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
+        ptr<log_entry> item(cs_new<log_entry>(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
         log_entries_[(size_t)index] = item;
         if((ulong)log_entries_.size() - index > 1){
             log_entries_.erase(log_entries_.begin() + (size_t)index + 1, log_entries_.end());
@@ -74,12 +75,12 @@ public:
     * @param end, the end index of log entries (exclusive)
     * @return the log entries between [start, end)
     */
-    virtual std::vector<log_entry*>* log_entries(ulong start, ulong end) {
+    virtual ptr<std::vector<ptr<log_entry>>> log_entries(ulong start, ulong end) {
         if(start >= end || start >= log_entries_.size()){
-            return nilptr;
+            return ptr<std::vector<ptr<log_entry>>>();
         }
         
-        std::vector<log_entry*>* v = new std::vector<log_entry*>();
+        ptr<std::vector<ptr<log_entry>>> v = cs_new<std::vector<ptr<log_entry>>>();
         for (size_t i = (size_t)start; i < (size_t)end; ++i) {
             v->push_back(entry_at(i));
         }
@@ -92,13 +93,12 @@ public:
     * @param index, starts from 1
     * @return the log entry or null if index >= this->next_slot()
     */
-    virtual log_entry* entry_at(ulong index) {
+    virtual ptr<log_entry> entry_at(ulong index) {
         if ((size_t)index >= log_entries_.size()) {
-            return nilptr;
+            return ptr<log_entry>();
         }
 
-        std::shared_ptr<log_entry>& p = log_entries_[index];
-        return new log_entry(p->get_term(), buffer::copy(p->get_buf()), p->get_val_type());
+        return log_entries_[index];
     }
 
     virtual ulong term_at(ulong index) {
@@ -106,7 +106,7 @@ public:
             return 0L;
         }
 
-        std::shared_ptr<log_entry>& p = log_entries_[index];
+        ptr<log_entry>& p = log_entries_[index];
         return p->get_term();
     }
 
@@ -116,8 +116,8 @@ public:
     * @param cnt
     * @return log pack
     */
-    virtual buffer* pack(ulong index, int32 cnt) {
-        return nilptr;
+    virtual ptr<buffer> pack(ulong index, int32 cnt) {
+        return ptr<buffer>();
     }
 
     /**
@@ -139,7 +139,7 @@ public:
     }
 
 private:
-    std::vector<std::shared_ptr<log_entry>> log_entries_;
+    std::vector<ptr<log_entry>> log_entries_;
     mutable std::mutex lock_;
 };
 
@@ -149,22 +149,22 @@ public:
         : srv_id_(srv_id) {}
 
 public:
-    virtual cluster_config* load_config() {
-        cluster_config* conf = new cluster_config;
-        conf->get_servers().push_back(new srv_config(1, "port1"));
-        conf->get_servers().push_back(new srv_config(2, "port2"));
-        conf->get_servers().push_back(new srv_config(3, "port3"));
+    virtual ptr<cluster_config> load_config() {
+        ptr<cluster_config> conf = cs_new<cluster_config>();
+        conf->get_servers().push_back(cs_new<srv_config>(1, "port1"));
+        conf->get_servers().push_back(cs_new<srv_config>(2, "port2"));
+        conf->get_servers().push_back(cs_new<srv_config>(3, "port3"));
         return conf;
     }
 
     virtual void save_config(const cluster_config& config) {}
     virtual void save_state(const srv_state& state) {}
-    virtual srv_state* read_state() {
-        return new srv_state;
+    virtual ptr<srv_state> read_state() {
+        return cs_new<srv_state>();
     }
 
-    virtual log_store* load_log_store() {
-        return new in_mem_log_store;
+    virtual ptr<log_store> load_log_store() {
+        return cs_new<in_mem_log_store>();
     }
 
     virtual int32 server_id() {
@@ -196,8 +196,8 @@ public:
         return 0;
     }
 
-    virtual snapshot* last_snapshot() {
-        return nilptr;
+    virtual ptr<snapshot> last_snapshot() {
+        return ptr<snapshot>();
     }
 
     virtual void create_snapshot(snapshot& s, async_result<bool>::handler_type& when_done) {}
@@ -205,7 +205,7 @@ public:
 
 class msg_bus {
 public:
-    typedef std::pair<req_msg*, std::shared_ptr<async_result<resp_msg*>>> message;
+    typedef std::pair<ptr<req_msg>, ptr<async_result<ptr<resp_msg>>>> message;
     
     class msg_queue {
     public:
@@ -283,21 +283,31 @@ public:
 
     __nocopy__(test_rpc_client)
 
-    virtual void send(req_msg* req, rpc_handler& when_done) __override__ {
-        std::shared_ptr<async_result<resp_msg*>> result(new async_result<resp_msg*>());
-	async_result<resp_msg*>::handler_type handler([req, when_done](resp_msg* resp, std::exception* err) -> void {
+    virtual void send(ptr<req_msg>& req, rpc_handler& when_done) __override__ {
+        ptr<async_result<ptr<resp_msg>>> result(cs_new<async_result<ptr<resp_msg>>>());
+	    async_result<ptr<resp_msg>>::handler_type handler([req, when_done](ptr<resp_msg>& resp, ptr<std::exception>& err) -> void {
             if (err != nilptr) {
-                when_done(nilptr, new rpc_exception(err->what(), req));
+                ptr<rpc_exception> excep(cs_new<rpc_exception>(err->what(), req));
+                ptr<resp_msg> no_resp;
+                when_done(no_resp, excep);
             }
             else {
-                when_done(resp, nilptr);
+                ptr<rpc_exception> no_excep;
+                when_done(resp, no_excep);
             }
-
-            delete req;
         });
         result->when_ready(handler);
         
-        msg_bus::message msg(std::make_pair(req, result));
+        //TODO need to do deep copy of the req to avoid all instances sharing the same request object
+        ptr<req_msg> dup_req(cs_new<req_msg>(req->get_term(), req->get_type(), req->get_src(), req->get_dst(), req->get_last_log_term(), req->get_last_log_idx(), req->get_commit_idx()));
+        for (std::vector<ptr<log_entry>>::const_iterator it = req->log_entries().begin();
+            it != req->log_entries().end(); ++it) {
+            ptr<buffer> buf = buffer::copy((*it)->get_buf());
+            ptr<log_entry> entry(cs_new<log_entry>((*it)->get_term(), buf, (*it)->get_val_type()));
+            dup_req->log_entries().push_back(entry);
+        }
+
+        msg_bus::message msg(std::make_pair(dup_req, result));
         bus_.send_msg(port_, msg);
     }
 private:
@@ -311,8 +321,8 @@ public:
         : bus_(bus) {}
     __nocopy__(test_rpc_cli_factory)
 public:
-    virtual rpc_client* create_client(const std::string& endpoint) __override__ {
-        return new test_rpc_client(bus_, endpoint);
+    virtual ptr<rpc_client> create_client(const std::string& endpoint) __override__ {
+        return cs_new<test_rpc_client, msg_bus&, const std::string&>(bus_, endpoint);
     }
 private:
     msg_bus& bus_;
@@ -324,28 +334,29 @@ public:
         : queue_(bus.get_queue(port)), stopped_(false), stop_lock_(), stopped_cv_(){}
     __nocopy__(test_rpc_listener)
 public:
-    virtual void listen(msg_handler* handler) __override__{
+    virtual void listen(ptr<msg_handler>& handler) __override__{
         std::thread t(std::bind(&test_rpc_listener::do_listening, this, handler));
         t.detach();
     }
 
     virtual void stop() {
         stopped_ = true;
-        queue_.enqueue(std::make_pair<req_msg*, std::shared_ptr<async_result<resp_msg*>>>(nilptr, std::shared_ptr<async_result<resp_msg*>>(nilptr)));
+        queue_.enqueue(std::make_pair(ptr<req_msg>(), ptr<async_result<ptr<resp_msg>>>()));
         std::unique_lock<std::mutex> lock(stop_lock_);
         stopped_cv_.wait(lock);
     }
 private:
-    void do_listening(msg_handler* handler) {
+    void do_listening(ptr<msg_handler> handler) {
         while (!stopped_) {
             msg_bus::message msg = queue_.dequeue();
             if (msg.first == nilptr) {
                 break;
             }
 
-            resp_msg* resp = handler->process_req(*(msg.first));
-	    if(stopped_) break;
-            msg.second->set_result(resp, nilptr);
+            ptr<resp_msg> resp = handler->process_req(*(msg.first));
+	        if(stopped_) break;
+            ptr<std::exception> no_err;
+            msg.second->set_result(resp, no_err);
         }
 
         stopped_cv_.notify_all();
@@ -376,24 +387,22 @@ void test_raft_server() {
     t3.detach();
     std::cout << "waiting for leader election..." << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::unique_ptr<rpc_client> client(rpc_factory.create_client("port1"));
-    req_msg* msg = new req_msg(0, msg_type::client_request, 0, 1, 0, 0, 0);
-    buffer* buf = buffer::alloc(100);
+    ptr<rpc_client> client(rpc_factory.create_client("port1"));
+    ptr<req_msg> msg = cs_new<req_msg>(0, msg_type::client_request, 0, 1, 0, 0, 0);
+    ptr<buffer> buf = buffer::alloc(100);
     buf->put("hello");
     buf->pos(0);
-    msg->log_entries().push_back(new log_entry(0, buf));
-    rpc_handler handler = (rpc_handler)([&client](resp_msg* resp, rpc_exception* err) -> void {
-        std::unique_ptr<resp_msg> rsp(resp);
+    msg->log_entries().push_back(cs_new<log_entry>(0, buf));
+    rpc_handler handler = (rpc_handler)([&client](ptr<resp_msg>& rsp, ptr<rpc_exception>& err) -> void {
         assert(rsp->get_accepted() || rsp->get_dst() > 0);
         if (!rsp->get_accepted()) {
-            client.reset(rpc_factory.create_client(sstrfmt("port%d").fmt(rsp->get_dst())));
-            req_msg* msg = new req_msg(0, msg_type::client_request, 0, 1, 0, 0, 0);
-            buffer* buf = buffer::alloc(100);
+            client = rpc_factory.create_client(sstrfmt("port%d").fmt(rsp->get_dst()));
+            ptr<req_msg> msg = cs_new<req_msg>(0, msg_type::client_request, 0, 1, 0, 0, 0);
+            ptr<buffer> buf = buffer::alloc(100);
             buf->put("hello");
             buf->pos(0);
-            msg->log_entries().push_back(new log_entry(0, buf));
-            rpc_handler handler = (rpc_handler)([&client](resp_msg* resp1, rpc_exception* err1) -> void {
-                std::unique_ptr<resp_msg> rsp1(resp1);
+            msg->log_entries().push_back(cs_new<log_entry>(0, buf));
+            rpc_handler handler = (rpc_handler)([&client](ptr<resp_msg>& rsp1, ptr<rpc_exception>& err1) -> void {
                 assert(rsp1->get_accepted());
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 stop_test_cv.notify_all();
@@ -432,8 +441,8 @@ void run_raft_instance(int srv_id) {
         .with_max_append_size(100)
         .with_rpc_failure_backoff(50);
     context* ctx(new context(smgr, smachine, listener, *l, rpc_factory, asio_svc, params));
-    raft_server srv(ctx);
-    listener.listen(&srv);
+    ptr<msg_handler> srv(cs_new<raft_server>(ctx));
+    listener.listen(srv);
     {
         std::unique_lock<std::mutex> ulock(lock);
         stop_cv.wait(ulock);

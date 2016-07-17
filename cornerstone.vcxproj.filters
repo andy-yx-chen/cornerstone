@@ -129,6 +129,9 @@
     <ClInclude Include="fs_log_store.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ptr.hxx">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tests\test_async_result.cxx">
@@ -191,10 +194,16 @@
     <ClCompile Include="fs_log_store.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests\test_log_store.cxx">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="tests\Makefile.win">
       <Filter>Source Files\tests</Filter>
+    </None>
+    <None Include="sources">
+      <Filter>Source Files</Filter>
     </None>
   </ItemGroup>
 </Project>

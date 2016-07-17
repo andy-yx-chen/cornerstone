@@ -9,7 +9,7 @@ void test_scheduler() {
     timer_task<void>::executor handler = (std::function<void()>)([]() -> void {
         _timer_fired_counter++;
     });
-    std::shared_ptr<delayed_task> task(new timer_task<void>(handler));
+    ptr<delayed_task> task(cs_new<timer_task<void>>(handler));
     std::cout << "scheduled to wait for 200ms" << std::endl;
     svc.schedule(task, 200);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));

@@ -17,7 +17,7 @@ SOURCES=raft_server.cxx\
 asio: asio/asio/include/asio.hpp
 
 asio/asio/include/asio.hpp:
-	@git clone https://github.com/andy-yx-chen/asio.git
+	@git clone https://github.com/chriskohlhoff/asio.git
 
 tests:	asio
 	@cd tests && nmake -f Makefile.win all && debug\obj\testr.exe && cd ..

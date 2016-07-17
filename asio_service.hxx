@@ -23,17 +23,17 @@ namespace cornerstone {
 
         __nocopy__(asio_service)
     public:
-        virtual void schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds) __override__;
-        virtual rpc_client* create_client(const std::string& endpoint) __override__;
+        virtual void schedule(ptr<delayed_task>& task, int32 milliseconds) __override__;
+        virtual ptr<rpc_client> create_client(const std::string& endpoint) __override__;
 
         logger* create_logger(log_level level, const std::string& log_file);
 
-        rpc_listener* create_rpc_listener(int listening_port);
+        ptr<rpc_listener> create_rpc_listener(int listening_port);
 
         void stop();
 
     private:
-        virtual void cancel_impl(std::shared_ptr<delayed_task>& task) __override__;
+        virtual void cancel_impl(ptr<delayed_task>& task) __override__;
     private:
         asio_service_impl* impl_;
     };

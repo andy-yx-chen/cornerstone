@@ -140,6 +140,7 @@
     <ClInclude Include="msg_type.hxx" />
     <ClInclude Include="peer.hxx" />
     <ClInclude Include="pp_util.hxx" />
+    <ClInclude Include="ptr.hxx" />
     <ClInclude Include="raft_params.hxx" />
     <ClInclude Include="raft_server.hxx" />
     <ClInclude Include="req_msg.hxx" />
@@ -174,6 +175,7 @@
     <ClCompile Include="tests\test_buffer.cxx" />
     <ClCompile Include="tests\test_impls.cxx" />
     <ClCompile Include="tests\test_logger.cxx" />
+    <ClCompile Include="tests\test_log_store.cxx" />
     <ClCompile Include="tests\test_raft_server.cxx" />
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_scheduler.cxx" />
@@ -182,6 +184,7 @@
     <ClCompile Include="tests\timer.cxx" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="sources" />
     <None Include="tests\Makefile.win" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

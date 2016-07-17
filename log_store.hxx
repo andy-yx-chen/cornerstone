@@ -21,13 +21,13 @@ namespace cornerstone {
         * The last log entry in store
         * @return a dummy constant entry with value set to null and term set to zero if no log entry in store
         */
-        virtual log_entry& last_entry() const = 0;
+        virtual ptr<log_entry> last_entry() const = 0;
 
         /**
         * Appends a log entry to store
         * @param entry
         */
-        virtual void append(log_entry& entry) = 0;
+        virtual ulong append(log_entry& entry) = 0;
 
         /**
         * Over writes a log entry at index of {@code index}
@@ -40,16 +40,16 @@ namespace cornerstone {
         * Get log entries with index between start and end
         * @param start, the start index of log entries
         * @param end, the end index of log entries (exclusive)
-        * @return the log entries between [start, end)
+        * @return the log entries between [start, end), nilptr is returned if no entries in that range
         */
-        virtual std::vector<log_entry*>* log_entries(ulong start, ulong end) = 0;
+        virtual ptr<std::vector<ptr<log_entry>>> log_entries(ulong start, ulong end) = 0;
 
         /**
         * Gets the log entry at the specified index
         * @param index, starts from 1
         * @return the log entry or null if index >= this->next_slot()
         */
-        virtual log_entry* entry_at(ulong index) = 0;
+        virtual ptr<log_entry> entry_at(ulong index) = 0;
 
         /**
         * Gets the term for the log entry at the specified index
@@ -65,7 +65,7 @@ namespace cornerstone {
         * @param cnt
         * @return log pack
         */
-        virtual buffer* pack(ulong index, int32 cnt) = 0;
+        virtual ptr<buffer> pack(ulong index, int32 cnt) = 0;
 
         /**
         * Apply the log pack to current log store, starting from index

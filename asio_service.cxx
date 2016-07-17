@@ -1,5 +1,8 @@
 #define ASIO_STANDALONE 1
 #define ASIO_HAS_STD_CHRONO 1
+#if defined(__EDG_VERSION__)
+#undef __EDG_VERSION__
+#endif
 #include "cornerstone.hxx"
 #include <fstream>
 #include <queue>
@@ -87,7 +90,7 @@ void _free_timer_(void* ptr) {
     delete timer;
 }
 
-void _timer_handler_(std::shared_ptr<delayed_task>& task, asio::error_code err) {
+void _timer_handler_(ptr<delayed_task>& task, asio::error_code err) {
     if (!err) {
         task->execute();
     }
@@ -208,7 +211,7 @@ asio_service::~asio_service() {
     delete impl_;
 }
 
-void asio_service::schedule(std::shared_ptr<delayed_task>& task, int32 milliseconds) {
+void asio_service::schedule(ptr<delayed_task>& task, int32 milliseconds) {
     if (task->get_impl_context() == nilptr) {
         task->set_impl_context(new asio::steady_timer(impl_->io_svc_), &_free_timer_);
     }
@@ -222,7 +225,7 @@ void asio_service::schedule(std::shared_ptr<delayed_task>& task, int32 milliseco
     timer->async_wait(std::bind(&_timer_handler_, task, std::placeholders::_1));
 }
 
-void asio_service::cancel_impl(std::shared_ptr<delayed_task>& task) {
+void asio_service::cancel_impl(ptr<delayed_task>& task) {
     if (task->get_impl_context() != nilptr) {
         static_cast<asio::steady_timer*>(task->get_impl_context())->cancel();
     }
@@ -232,8 +235,8 @@ void asio_service::stop() {
     impl_->stop();
 }
 
-rpc_client* asio_service::create_client(const std::string& endpoint) {
-    return nilptr;
+ptr<rpc_client> asio_service::create_client(const std::string& endpoint) {
+    return ptr<rpc_client>();
 }
 
 logger* asio_service::create_logger(log_level level, const std::string& log_file) {
@@ -246,6 +249,6 @@ logger* asio_service::create_logger(log_level level, const std::string& log_file
     return l;
 }
 
-rpc_listener* asio_service::create_rpc_listener(int listening_port) {
-    return nilptr;
+ptr<rpc_listener> asio_service::create_rpc_listener(int listening_port) {
+    return ptr<rpc_listener>();
 }

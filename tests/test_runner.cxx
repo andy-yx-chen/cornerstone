@@ -13,6 +13,7 @@ __decl_test__(buffer);
 __decl_test__(serialization);
 __decl_test__(scheduler);
 __decl_test__(logger);
+__decl_test__(log_store);
 __decl_test__(raft_server);
 
 int main() {

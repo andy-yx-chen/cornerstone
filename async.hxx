@@ -2,12 +2,12 @@
 #define _ASYNC_HXX_
 
 namespace cornerstone {
-    template<typename T, typename TE = std::exception*>
+    template<typename T, typename TE = ptr<std::exception>>
     class async_result {
     public:
-        typedef std::function<void(T, TE)> handler_type;
+        typedef std::function<void(T&, TE&)> handler_type;
         async_result() : err_(), has_result_(false), lock_(), cv_() {}
-        explicit async_result(T result)
+        explicit async_result(T& result)
             : result_(result), err_(), has_result_(true), lock_(), cv_() {}
         explicit async_result(handler_type& handler)
             : err_(), has_result_(true), handler_(handler), lock_(), cv_() {}
@@ -27,7 +27,7 @@ namespace cornerstone {
             }
         }
 
-        void set_result(T result, TE err) {
+        void set_result(T& result, TE& err) {
 	        {
                 std::lock_guard<std::mutex> guard(lock_);
                 result_ = result;
@@ -41,7 +41,7 @@ namespace cornerstone {
             cv_.notify_all();
         }
 
-        T get() {
+        T& get() {
             std::unique_lock<std::mutex> lock(lock_);
             if (has_result_) {
                 if (err_ == nullptr) {

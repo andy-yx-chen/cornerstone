@@ -9,8 +9,10 @@ using namespace cornerstone;
 
 typedef async_result<int>::handler_type int_handler;
 
-std::shared_ptr<async_result<int>> create_and_set_async_result(int time_to_sleep, int value, std::exception* err) {
-    std::shared_ptr<async_result<int>> result(new async_result<int>());
+ptr<std::exception> no_except;
+
+ptr<async_result<int>> create_and_set_async_result(int time_to_sleep, int value, ptr<std::exception>& err) {
+    ptr<async_result<int>> result(cs_new<async_result<int>>());
     if (time_to_sleep <= 0) {
         result->set_result(value, err);
         return result;
@@ -18,7 +20,9 @@ std::shared_ptr<async_result<int>> create_and_set_async_result(int time_to_sleep
 
     std::thread th([=]() -> void {
         std::this_thread::sleep_for(std::chrono::milliseconds(time_to_sleep));
-        result->set_result(value, err);
+        int val = value;
+        ptr<std::exception> ex(err);
+        result->set_result(val, ex);
     });
 
     th.detach();
@@ -28,60 +32,59 @@ std::shared_ptr<async_result<int>> create_and_set_async_result(int time_to_sleep
 void test_async_result() {
     std::cout << "test with sync set" << std::endl;
     {
-        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(0, 123, nullptr));
-        assert(123 == ptr->get());
+        ptr<async_result<int>> p(create_and_set_async_result(0, 123, no_except));
+        assert(123 == p->get());
         bool handler_called = false;
-	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, std::exception* e) -> void {
+	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, ptr<std::exception>& e) -> void {
             assert(123 == val);
-            assert(nullptr == e);
+            assert(e == nullptr);
             handler_called = true;
 	    });
 	
-        ptr->when_ready(h);
+        p->when_ready(h);
         assert(handler_called);
     }
 
     std::cout << "test with async set and wait" << std::endl;
     {
-        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
+        ptr<async_result<int>> presult(create_and_set_async_result(200, 496, no_except));
         bool handler_called = false;
-	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, std::exception* e) -> void {
+	    int_handler h = (async_result<int>::handler_type)([&handler_called](int val, ptr<std::exception> e) -> void {
             assert(496 == val);
-            assert(nullptr == e);
+            assert(e == nullptr);
             handler_called = true;
 	    });
-        ptr->when_ready(h);
-        assert(496 == ptr->get());
+        presult->when_ready(h);
+        assert(496 == presult->get());
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         assert(handler_called);
     }
 
     std::cout << "test with async set and wait without completion handler" << std::endl;
     {
-        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, nullptr));
-        assert(496 == ptr->get());
+        ptr<async_result<int>> p(create_and_set_async_result(200, 496, no_except));
+        assert(496 == p->get());
     }
 
     std::cout << "test with exceptions" << std::endl;
     {
-        std::exception* ex = new std::bad_exception();
-        std::shared_ptr<async_result<int>> ptr(create_and_set_async_result(200, 496, ex));
+        ptr<std::exception> ex = cs_new<std::bad_exception>();
+        ptr<async_result<int>> presult(create_and_set_async_result(200, 496, ex));
         bool handler_called = false;
-	    int_handler h = (async_result<int>::handler_type)([&handler_called,ex](int val, std::exception* e) -> void {
+	    int_handler h = (async_result<int>::handler_type)([&handler_called,ex](int val, ptr<std::exception>& e) -> void {
             assert(ex == e);
             handler_called = true;
 	    });
-        ptr->when_ready(h);
+        presult->when_ready(h);
 
         bool ex_handled = false;
         try {
-            ptr->get();
+            presult->get();
         }
-        catch (const std::exception* err) {
+        catch (const ptr<std::exception>& err) {
             (void)err;
             assert(ex == err);
             ex_handled = true;
-            delete err;
         }
 
         assert(ex_handled);
