@@ -28,6 +28,7 @@ namespace cornerstone {
         }
 
         ref_counter_t* p_int = new (p) ref_counter_t(0);
+        (void)p_int;
         return ptr<T>(p);
     }
 
