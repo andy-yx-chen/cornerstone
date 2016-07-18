@@ -44,10 +44,9 @@ public:
     * Appends a log entry to store
     * @param entry
     */
-    virtual ulong append(log_entry& entry) {
+    virtual ulong append(ptr<log_entry>& entry) {
         auto_lock(lock_);
-        ptr<log_entry> item(cs_new<log_entry>(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
-        log_entries_.push_back(item);
+        log_entries_.push_back(entry);
         return (ulong)(log_entries_.size() - 1);
     }
 
@@ -56,14 +55,13 @@ public:
     * @param index a value < this->next_slot(), and starts from 1
     * @param entry
     */
-    virtual void write_at(ulong index, log_entry& entry) {
+    virtual void write_at(ulong index, ptr<log_entry>& entry) {
         auto_lock(lock_);
         if(index >= (ulong)log_entries_.size() || index < 1){
             throw std::overflow_error("index out of range");
         }
         
-        ptr<log_entry> item(cs_new<log_entry>(entry.get_term(), buffer::copy(entry.get_buf()), entry.get_val_type()));
-        log_entries_[(size_t)index] = item;
+        log_entries_[(size_t)index] = entry;
         if((ulong)log_entries_.size() - index > 1){
             log_entries_.erase(log_entries_.begin() + (size_t)index + 1, log_entries_.end());
         }

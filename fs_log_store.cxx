@@ -49,6 +49,8 @@ int truncate(const char* path, ulong new_size) {
 #endif
 
 using namespace cornerstone;
+ptr<buffer> zero_buf;
+ptr<log_entry> empty_entry(cs_new<log_entry>(0, zero_buf, log_val_type::app_log));
 
 class cornerstone::log_store_buffer {
 public:
@@ -119,14 +121,16 @@ public:
         recur_lock(lock_);
         int offset = static_cast<int>(start - start_idx_);
         int good_cnt = static_cast<int>(cnt > buf_.size() - offset ? buf_.size() - offset : cnt);
+        std::vector<ptr<buffer>> buffers;
         size_t size = 0;
         for (int i = offset; i < offset + good_cnt; ++offset) {
-            size += buf_[i]->size();
+            ptr<buffer> buf = buf_[i]->serialize();
+            size += buf->size();
         }
 
-        buffer* buf = buffer::alloc(size);
-        for (int i = offset; i < offset + good_cnt; ++offset) {
-            buf->put(*buf_[i]);
+        ptr<buffer> buf = buffer::alloc(size);
+        for (size_t i = 0; i < buffers.size(); ++i) {
+            buf->put(*buffers[i]);
         }
 
         buf->pos(0);
@@ -139,8 +143,7 @@ public:
             return 0;
         }
 
-        buffer* buf = buf_[static_cast<int>(index - start_idx_)];
-        return log_entry::term_in_buffer(*buf);
+        return buf_[static_cast<int>(index - start_idx_)]->get_term();
     }
 
     // trimming the buffer [start, end)
@@ -152,19 +155,14 @@ public:
 
         int index = static_cast<int>(start - start_idx_);
         if (index < buf_.size()) {
-            for (std::vector<buffer*>::const_iterator it = buf_.begin() + index; it != buf_.end(); ++it) {
-                buffer::release(*it);
-            }
-
             buf_.erase(buf_.begin() + index, buf_.end());
         }
     }
 
-    void append(buffer* buf) {
+    void append(ptr<log_entry>& entry) {
         recur_lock(lock_);
-        buf_.push_back(buf);
+        buf_.push_back(entry);
         if (max_size_ < buf_.size()) {
-            buffer::release(*(buf_.begin()));
             buf_.erase(buf_.begin());
             start_idx_ += 1;
         }
@@ -172,10 +170,6 @@ public:
 
     void reset(ulong start_idx) {
         recur_lock(lock_);
-        for (std::vector<buffer*>::const_iterator it = buf_.begin(); it != buf_.end(); ++it) {
-            buffer::release(*it);
-        }
-
         buf_.clear();
         start_idx_ = start_idx;
     }
@@ -228,13 +222,13 @@ fs_log_store::fs_log_store(const std::string& log_folder, int buf_size)
 
     if (start_idx_file_.tellg() > 0) {
         start_idx_file_.seekg(0, std::fstream::beg);
-        buffer::safe_buffer idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
         start_idx_file_ >> *idx_buf;
         start_idx_ = idx_buf->get_ulong();
     }
     else {
         start_idx_ = 1;
-        buffer::safe_buffer idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
         idx_buf->put(start_idx_);
         start_idx_file_.seekp(0, std::fstream::beg);
         start_idx_file_ << *idx_buf;
@@ -255,31 +249,31 @@ ulong fs_log_store::start_index() const {
     return start_idx_;
 }
 
-log_entry* fs_log_store::last_entry() const {
-    log_entry* entry = buf_->last_entry();
+ptr<log_entry> fs_log_store::last_entry() const {
+    ptr<log_entry> entry = buf_->last_entry();
     if (entry == nilptr) {
-        return new log_entry(0L, nilptr);
+        return empty_entry;
     }
 
     return entry;
 }
 
-ulong fs_log_store::append(log_entry& entry) {
+ulong fs_log_store::append(ptr<log_entry>& entry) {
     recur_lock(store_lock_);
     idx_file_.seekp(0, std::fstream::end);
     data_file_.seekp(0, std::fstream::end);
-    buffer::safe_buffer idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+    ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
     idx_buf->put(static_cast<ulong>(data_file_.tellp()));
     idx_buf->pos(0);
     idx_file_ << *idx_buf;
-    buffer* entry_buf = entry.serialize();
+    ptr<buffer> entry_buf = entry->serialize();
     data_file_ << *entry_buf;
-    buf_->append(entry_buf);
+    buf_->append(entry);
     entries_in_store_ += 1;
     return start_idx_ + entries_in_store_ - 1;
 }
 
-void fs_log_store::write_at(ulong index, log_entry& entry) {
+void fs_log_store::write_at(ulong index, ptr<log_entry>& entry) {
     recur_lock(store_lock_);
     if (index < start_idx_ || index > start_idx_ + entries_in_store_) {
         throw std::range_error("index out of range");
@@ -289,7 +283,7 @@ void fs_log_store::write_at(ulong index, log_entry& entry) {
     ulong idx_pos = (local_idx - 1) * sz_ulong;
     if (local_idx <= entries_in_store_) {
         idx_file_.seekg(idx_pos, std::fstream::beg);
-        buffer::safe_buffer buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *buf;
         data_file_.seekp(buf->get_ulong(), std::fstream::beg);
     }
@@ -299,11 +293,11 @@ void fs_log_store::write_at(ulong index, log_entry& entry) {
 
     idx_file_.seekp(idx_pos, std::fstream::beg);
     ulong data_pos = data_file_.tellp();
-    buffer::safe_buffer ibuf(std::move(buffer::safe_alloc(sz_ulong)));
+    ptr<buffer> ibuf(std::move(buffer::alloc(sz_ulong)));
     ibuf->put(data_pos);
     ibuf->pos(0);
     idx_file_ << *ibuf;
-    buffer* ebuf = entry.serialize();
+    ptr<buffer> ebuf = entry->serialize();
     data_file_ << *ebuf;
 
     // truncate the files if necessary
@@ -331,11 +325,11 @@ void fs_log_store::write_at(ulong index, log_entry& entry) {
         buf_->trim(index);
     }
 
-    buf_->append(ebuf);
+    buf_->append(entry);
     entries_in_store_ = index;
 }
 
-std::vector<log_entry*>* fs_log_store::log_entries(ulong start, ulong end) {
+ptr<std::vector<ptr<log_entry>>> fs_log_store::log_entries(ulong start, ulong end) {
     ulong lstart(0), lend(0), good_end(0);
     {
         recur_lock(store_lock_);
@@ -344,7 +338,7 @@ std::vector<log_entry*>* fs_log_store::log_entries(ulong start, ulong end) {
         }
 
         if (start >= end || start >= (start_idx_ + entries_in_store_)) {
-            return nilptr;
+            return ptr<std::vector<ptr<log_entry>>>();
         }
 
         lstart = start - start_idx_;
@@ -354,10 +348,10 @@ std::vector<log_entry*>* fs_log_store::log_entries(ulong start, ulong end) {
     }
 
     if (lstart >= lend) {
-        return nilptr;
+        return ptr<std::vector<ptr<log_entry>>>();
     }
 
-    std::vector<log_entry*>* results = new std::vector<log_entry*>();
+    ptr<std::vector<ptr<log_entry>>> results(cs_new<std::vector<ptr<log_entry>>>());
 
     // fill with the buffer
     ulong buffer_first_idx = buf_->fill(start, good_end, *results);
@@ -369,16 +363,16 @@ std::vector<log_entry*>* fs_log_store::log_entries(ulong start, ulong end) {
         recur_lock(store_lock_);
         lend = buffer_first_idx - start_idx_;
         idx_file_.seekg(lstart * sz_ulong);
-        buffer::safe_buffer d_start_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> d_start_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *d_start_idx_buf;
         ulong data_start = d_start_idx_buf->get_ulong();
         for (int i = 0; i < (int)(lend - lstart); ++i) {
-            buffer::safe_buffer d_end_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+            ptr<buffer> d_end_idx_buf(std::move(buffer::alloc(sz_ulong)));
             idx_file_ >> *d_end_idx_buf;
             ulong data_end = d_end_idx_buf->get_ulong();
             int data_sz = (int)(data_end - data_start);
             data_file_.seekg(data_start);
-            buffer::safe_buffer entry_buf(std::move(buffer::safe_alloc(data_sz)));
+            ptr<buffer> entry_buf(std::move(buffer::alloc(data_sz)));
             (*results)[i] = log_entry::deserialize(*entry_buf);
             data_start = data_end;
         }
@@ -387,10 +381,10 @@ std::vector<log_entry*>* fs_log_store::log_entries(ulong start, ulong end) {
     return results;
 }
 
-log_entry* fs_log_store::entry_at(ulong index) {
+ptr<log_entry> fs_log_store::entry_at(ulong index) {
 
-    log_entry* entry = (*buf_)[index];
-    if (entry != nilptr) {
+    ptr<log_entry> entry = (*buf_)[index];
+    if (!entry) {
         return entry;
     }
 
@@ -403,19 +397,19 @@ log_entry* fs_log_store::entry_at(ulong index) {
         }
 
         if (index >= start_idx_ + entries_in_store_) {
-            return nilptr;
+            return ptr<log_entry>();
         }
 
         ulong idx_pos = (index - start_idx_) * sz_ulong;
         idx_file_.seekg(idx_pos);
-        buffer::safe_buffer d_start_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> d_start_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *d_start_idx_buf;
         ulong d_pos = d_start_idx_buf->get_ulong();
-        buffer::safe_buffer d_end_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> d_end_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *d_end_idx_buf;
         ulong end_d_pos = d_end_idx_buf->get_ulong();
         data_file_.seekg(d_pos);
-        buffer::safe_buffer entry_buf(std::move(buffer::safe_alloc((int)(end_d_pos - d_pos))));
+        ptr<buffer> entry_buf(std::move(buffer::alloc((int)(end_d_pos - d_pos))));
         data_file_ >> *entry_buf;
         return log_entry::deserialize(*entry_buf);
     }
@@ -433,19 +427,19 @@ ulong fs_log_store::term_at(ulong index) {
         }
 
         idx_file_.seekg(static_cast<int>(index - start_idx_) * sz_ulong);
-        buffer::safe_buffer d_start_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> d_start_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *d_start_idx_buf;
         data_file_.seekg(d_start_idx_buf->get_ulong());
 
         // IMPORTANT!! 
         // We hack the log_entry serialization details here
-        buffer::safe_buffer term_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> term_buf(std::move(buffer::alloc(sz_ulong)));
         data_file_ >> *term_buf;
         return term_buf->get_ulong();
     }
 }
 
-buffer* fs_log_store::pack(ulong index, int32 cnt) {
+ptr<buffer> fs_log_store::pack(ulong index, int32 cnt) {
     recur_lock(store_lock_);
     if (index < start_idx_) {
         throw std::range_error("index out of range");
@@ -459,7 +453,7 @@ buffer* fs_log_store::pack(ulong index, int32 cnt) {
     ulong end_offset = std::min(offset + cnt, entries_in_store_);
     idx_file_.seekg(static_cast<int>(end_offset - offset) * sz_ulong);
     bool read_to_end = end_offset == entries_in_store_;
-    buffer::safe_buffer idx_buf(std::move(buffer::safe_alloc(static_cast<int>(end_offset - offset) * sz_ulong)));
+    ptr<buffer> idx_buf(std::move(buffer::alloc(static_cast<int>(end_offset - offset) * sz_ulong)));
     idx_file_ >> *idx_buf;
     ulong end_of_data(0);
     if (read_to_end) {
@@ -467,7 +461,7 @@ buffer* fs_log_store::pack(ulong index, int32 cnt) {
         end_of_data = data_file_.tellg();
     }
     else {
-        buffer::safe_buffer end_d_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> end_d_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *end_d_idx_buf;
         end_of_data = end_d_idx_buf->get_ulong();
     }
@@ -475,9 +469,9 @@ buffer* fs_log_store::pack(ulong index, int32 cnt) {
     ulong start_of_data = idx_buf->get_ulong();
     idx_buf->pos(0);
     data_file_.seekg(start_of_data);
-    buffer::safe_buffer data_buf(std::move(buffer::safe_alloc(static_cast<int>(end_of_data - start_of_data))));
+    ptr<buffer> data_buf(std::move(buffer::alloc(static_cast<int>(end_of_data - start_of_data))));
     data_file_ >> *data_buf;
-    buffer* result = buffer::alloc(2 * sz_int + idx_buf->size() + data_buf->size());
+    ptr<buffer> result = buffer::alloc(2 * sz_int + idx_buf->size() + data_buf->size());
     result->put(static_cast<int32>(idx_buf->size()));
     result->put(static_cast<int32>(data_buf->size()));
     result->put(*idx_buf);
@@ -498,7 +492,7 @@ void fs_log_store::apply_pack(ulong index, buffer& pack) {
     else {
         ulong idx_pos = local_idx * sz_ulong;
         idx_file_.seekg(idx_pos);
-        buffer::safe_buffer data_pos_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> data_pos_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *data_pos_buf;
         idx_file_.seekp(idx_pos);
         data_file_.seekp(data_pos_buf->get_ulong());
@@ -575,7 +569,7 @@ bool fs_log_store::compact(ulong last_log_index) {
 
             // save the logstore state
             start_idx_file_.seekp(0);
-            buffer::safe_buffer start_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+            ptr<buffer> start_idx_buf(std::move(buffer::alloc(sz_ulong)));
             start_idx_buf->put(last_log_index + 1);
             start_idx_buf->pos(0);
             start_idx_file_ << *start_idx_buf;
@@ -593,7 +587,7 @@ bool fs_log_store::compact(ulong last_log_index) {
         // else, we need to compact partial of the logs
         ulong local_last_idx = last_log_index - start_idx_;
         ulong idx_pos = (local_last_idx + 1) * sz_ulong;
-        buffer::safe_buffer data_pos_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> data_pos_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_.seekg(idx_pos);
         idx_file_ >> *data_pos_buf;
         idx_file_.seekp(0, std::fstream::end);
@@ -637,7 +631,7 @@ bool fs_log_store::compact(ulong last_log_index) {
         start_idx_bak_file.close();
 
         start_idx_file_.seekp(0);
-        buffer::safe_buffer start_idx_buf(std::move(buffer::safe_alloc(sz_ulong)));
+        ptr<buffer> start_idx_buf(std::move(buffer::alloc(sz_ulong)));
         start_idx_buf->put(last_log_index + 1);
         start_idx_buf->pos(0);
         start_idx_file_ << *start_idx_buf;
@@ -687,20 +681,20 @@ void fs_log_store::fill_buffer() {
     if (idx_file_len > 0) {
         ulong idx_pos = (first_idx - start_idx_) * sz_ulong;
         idx_file_.seekg(idx_pos);
-        buffer::safe_buffer idx_buf(std::move(buffer::safe_alloc(static_cast<size_t>(idx_file_len - idx_pos))));
+        ptr<buffer> idx_buf(std::move(buffer::alloc(static_cast<size_t>(idx_file_len - idx_pos))));
         idx_file_ >> *idx_buf;
         ulong data_start = idx_buf->get_ulong();
         data_file_.seekg(data_start);
         while (idx_buf->size() > idx_buf->pos()) {
             ulong data_end = idx_buf->get_ulong();
-            buffer* buf = buffer::alloc(static_cast<size_t>(data_end - data_start));
+            ptr<buffer> buf = buffer::alloc(static_cast<size_t>(data_end - data_start));
             data_file_ >> *buf;
-            buf_->append(buf);
+            buf_->append(log_entry::deserialize(*buf));
             data_start = data_end;
         }
 
-        buffer* last_buf = buffer::alloc(static_cast<size_t>(data_file_len - data_start));
+        ptr<buffer> last_buf = buffer::alloc(static_cast<size_t>(data_file_len - data_start));
         data_file_ >> *last_buf;
-        buf_->append(last_buf);
+        buf_->append(log_entry::deserialize(*last_buf));
     }
 }

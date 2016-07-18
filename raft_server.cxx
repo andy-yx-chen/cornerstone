@@ -112,13 +112,13 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req) {
                 state_machine_.rollback(idx, old_entry->get_buf());
             }
 
-            log_store_->write_at(idx++, *(req.log_entries().at(log_idx++)));
+            log_store_->write_at(idx++, req.log_entries().at(log_idx++));
         }
 
         // append new log entries
         while (log_idx < req.log_entries().size()) {
             ptr<log_entry> entry = req.log_entries().at(log_idx ++);
-            log_store_->append(*entry);
+            log_store_->append(entry);
             if (entry->get_val_type() == log_val_type::conf) {
                 reconfigure(cluster_config::deserialize(entry->get_buf()));
             }
@@ -157,7 +157,7 @@ ptr<resp_msg> raft_server::handle_cli_req(req_msg& req) {
 
     std::vector<ptr<log_entry>>& entries = req.log_entries();
     for (size_t i = 0; i < entries.size(); ++i) {
-        log_store_->append(*entries.at(i));
+        log_store_->append(entries.at(i));
         state_machine_.pre_commit(log_store_->next_slot() - 1, entries.at(i)->get_buf());
     }
 
@@ -469,7 +469,7 @@ void raft_server::become_leader() {
     if (config_->get_log_idx() == 0) {
         config_->set_log_idx(log_store_->next_slot());
         ptr<buffer> conf_buf = config_->serialize();
-        log_entry entry(state_->get_term(), conf_buf, log_val_type::conf);
+        ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), conf_buf, log_val_type::conf));
         log_store_->append(entry);
     }
 
@@ -1076,8 +1076,8 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
         new_conf->get_servers().insert(new_conf->get_servers().end(), config_->get_servers().begin(), config_->get_servers().end());
         new_conf->get_servers().push_back(conf_to_add_);
         ptr<buffer> new_conf_buf(new_conf->serialize());
-        std::unique_ptr<log_entry> entry(new log_entry(state_->get_term(), new_conf_buf, log_val_type::conf));
-        log_store_->append(*entry);
+        ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), new_conf_buf, log_val_type::conf));
+        log_store_->append(entry);
         config_ = new_conf;
         enable_hb_for_peer(*srv_to_join_);
         peers_.insert(std::make_pair(srv_to_join_->get_id(), srv_to_join_));
@@ -1156,8 +1156,8 @@ void raft_server::rm_srv_from_cluster(int32 srv_id) {
 
     config_changing_ = false;
     ptr<buffer> new_conf_buf(new_conf->serialize());
-    std::unique_ptr<log_entry> entry(new log_entry(state_->get_term(), new_conf_buf, log_val_type::conf));
-    log_store_->append(*entry);
+    ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), new_conf_buf, log_val_type::conf));
+    log_store_->append(entry);
     config_ = new_conf;
     request_append_entries();
 }

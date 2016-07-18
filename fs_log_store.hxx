@@ -31,14 +31,14 @@ namespace cornerstone {
         * Appends a log entry to store
         * @param entry
         */
-        virtual ulong append(log_entry& entry);
+        virtual ulong append(ptr<log_entry>& entry);
 
         /**
         * Over writes a log entry at index of {@code index}
         * @param index a value < this->next_slot(), and starts from 1
         * @param entry
         */
-        virtual void write_at(ulong index, log_entry& entry);
+        virtual void write_at(ulong index, ptr<log_entry>& entry);
 
         /**
         * Get log entries with index between start and end
