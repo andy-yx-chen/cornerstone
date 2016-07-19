@@ -21,4 +21,6 @@ SOURCES=\
 	test_logger.cxx\
 	..\raft_server.cxx\
 	..\peer.cxx\
-	test_impls.cxx
+	test_impls.cxx\
+	test_log_store.cxx\
+	..\fs_log_store.cxx

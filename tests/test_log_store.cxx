@@ -63,7 +63,7 @@ void test_log_store() {
     std::vector<ptr<log_entry>> logs;
     for (int i = 0; i < 100 + rnd() % 100; ++i) {
         ptr<log_entry> item(rnd_entry(rnd));
-        store.append(*item);
+        store.append(item);
         logs.push_back(item);
     }
 
@@ -112,7 +112,7 @@ void test_log_store() {
     // test write at
     ptr<log_entry> item(rnd_entry(rnd));
     rnd_idx = rnd() % store1.next_slot();
-    store1.write_at(rnd_idx, *item);
+    store1.write_at(rnd_idx, item);
     assert(store1.start_index() + rnd_idx + 1, store1.next_slot());
     ptr<log_entry> last2(store1.last_entry());
     assert(entry_equals(*item, *last2));

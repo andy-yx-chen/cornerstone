@@ -216,9 +216,9 @@ fs_log_store::fs_log_store(const std::string& log_folder, int buf_size)
     idx_file_.open(log_folder_ + LOG_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
     data_file_.open(log_folder_ + LOG_DATA_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
     start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
-    if (!idx_file_ || !data_file_ || !start_idx_file_) {
+    /*if (idx_file_.fail() || data_file_.fail() || start_idx_file_.fail()) {
         throw std::ios_base::failure("failed to open idx, dat or sti file");
-    }
+    }*/
 
     if (start_idx_file_.tellg() > 0) {
         start_idx_file_.seekg(0, std::fstream::beg);
