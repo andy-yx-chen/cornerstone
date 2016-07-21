@@ -36,8 +36,8 @@ static bool entry_equals(log_entry& entry1, log_entry& entry2) {
                     && entry1.get_buf().size() == entry2.get_buf().size();
     if (result) {
         for (size_t i = 0; i < entry1.get_buf().size(); ++i) {
-            byte b1 = entry1.get_buf().get_byte();
-            byte b2 = entry2.get_buf().get_byte();
+            byte b1 = entry1.get_buf().data()[i];
+            byte b2 = entry2.get_buf().data()[i];
             result = b1 == b2;
         }
     }
@@ -74,7 +74,7 @@ void test_log_store() {
 
     // random item test
     for (int i = 0; i < 20; ++i) {
-        size_t idx = (size_t)rnd();
+        size_t idx = (size_t)(rnd() % logs.size());
         ptr<log_entry> item(store.entry_at(idx + 1));
         assert(entry_equals(*item, *(logs[idx])));
     }
@@ -96,7 +96,7 @@ void test_log_store() {
 
     // random item test
     for (int i = 0; i < 20; ++i) {
-        size_t idx = (size_t)rnd();
+        size_t idx = (size_t)rnd() % logs.size();
         ptr<log_entry> item(store1.entry_at(idx + 1));
         assert(entry_equals(*item, *(logs[idx])));
     }
@@ -113,7 +113,7 @@ void test_log_store() {
     ptr<log_entry> item(rnd_entry(rnd));
     rnd_idx = rnd() % store1.next_slot();
     store1.write_at(rnd_idx, item);
-    assert(store1.start_index() + rnd_idx + 1, store1.next_slot());
+    assert(rnd_idx + 1 == store1.next_slot());
     ptr<log_entry> last2(store1.last_entry());
     assert(entry_equals(*item, *last2));
     store1.close();

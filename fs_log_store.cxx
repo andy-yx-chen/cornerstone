@@ -214,27 +214,45 @@ fs_log_store::fs_log_store(const std::string& log_folder, int buf_size)
     }
 
     idx_file_.open(log_folder_ + LOG_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
-    data_file_.open(log_folder_ + LOG_DATA_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
-    start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
-    /*if (idx_file_.fail() || data_file_.fail() || start_idx_file_.fail()) {
-        throw std::ios_base::failure("failed to open idx, dat or sti file");
-    }*/
+    if (!idx_file_) {
+        // create the file and reopen
+        idx_file_.open(log_folder_ + LOG_INDEX_FILE, std::fstream::out);
+        idx_file_.close();
+        idx_file_.open(log_folder_ + LOG_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    }
 
-    if (start_idx_file_.tellg() > 0) {
+    data_file_.open(log_folder_ + LOG_DATA_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    if (!data_file_) {
+        // create the file and reopen
+        data_file_.open(log_folder_ + LOG_DATA_FILE, std::fstream::out);
+        data_file_.close();
+        data_file_.open(log_folder_ + LOG_DATA_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    }
+
+    start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    if (!start_idx_file_) {
+        start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::out);
+        start_idx_file_.close();
+        start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    }
+
+    if (start_idx_file_.tellp() > 0) {
         start_idx_file_.seekg(0, std::fstream::beg);
         ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
         start_idx_file_ >> *idx_buf;
         start_idx_ = idx_buf->get_ulong();
+        entries_in_store_ = idx_file_.tellp() / sz_ulong;
     }
     else {
         start_idx_ = 1;
         ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
         idx_buf->put(start_idx_);
+        idx_buf->pos(0);
         start_idx_file_.seekp(0, std::fstream::beg);
         start_idx_file_ << *idx_buf;
+        entries_in_store_ = 0;
     }
 
-    entries_in_store_ = idx_file_.tellp() / sz_ulong;
     buf_ = new log_store_buffer(entries_in_store_ > buf_size_ ? entries_in_store_ - buf_size_ + start_idx_ : start_idx_, buf_size_);
     fill_buffer();
 }
@@ -270,6 +288,8 @@ ulong fs_log_store::append(ptr<log_entry>& entry) {
     data_file_ << *entry_buf;
     buf_->append(entry);
     entries_in_store_ += 1;
+    idx_file_.flush();
+    data_file_.flush();
     return start_idx_ + entries_in_store_ - 1;
 }
 
@@ -299,6 +319,8 @@ void fs_log_store::write_at(ulong index, ptr<log_entry>& entry) {
     idx_file_ << *ibuf;
     ptr<buffer> ebuf = entry->serialize();
     data_file_ << *ebuf;
+    idx_file_.flush();
+    data_file_.flush();
 
     // truncate the files if necessary
     ulong ndata_len = data_file_.tellp();
@@ -384,7 +406,7 @@ ptr<std::vector<ptr<log_entry>>> fs_log_store::log_entries(ulong start, ulong en
 ptr<log_entry> fs_log_store::entry_at(ulong index) {
 
     ptr<log_entry> entry = (*buf_)[index];
-    if (!entry) {
+    if (entry) {
         return entry;
     }
 
@@ -500,6 +522,8 @@ void fs_log_store::apply_pack(ulong index, buffer& pack) {
 
     idx_file_.write(reinterpret_cast<const char*>(pack.data()), idx_len);
     data_file_.write(reinterpret_cast<const char*>(pack.data() + idx_len), data_len);
+    idx_file_.flush();
+    data_file_.flush();
     ulong idx_pos = idx_file_.tellp();
     ulong data_pos = data_file_.tellp();
     idx_file_.seekp(0, std::fstream::end);
@@ -555,6 +579,9 @@ bool fs_log_store::compact(ulong last_log_index) {
     idx_bak_file << idx_file_.rdbuf();
     data_bak_file << data_file_.rdbuf();
     start_idx_bak_file << start_idx_file_.rdbuf();
+    idx_bak_file.flush();
+    data_bak_file.flush();
+    start_idx_bak_file.flush();
 
     do {
         if (last_log_index >= start_idx_ + entries_in_store_ - 1) {
@@ -635,6 +662,7 @@ bool fs_log_store::compact(ulong last_log_index) {
         start_idx_buf->put(last_log_index + 1);
         start_idx_buf->pos(0);
         start_idx_file_ << *start_idx_buf;
+        start_idx_file_.flush();
         start_idx_ = last_log_index + 1;
         entries_in_store_ -= (last_log_index - start_idx_ + 1);
         buf_->reset(entries_in_store_ > buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
@@ -658,6 +686,9 @@ bool fs_log_store::compact(ulong last_log_index) {
     data_file_ << data_bak_file.rdbuf();
     idx_file_ << idx_bak_file.rdbuf();
     start_idx_file_ << start_idx_bak_file.rdbuf();
+    data_file_.flush();
+    idx_file_.flush();
+    start_idx_file_.flush();
 
     // close all backup files
     idx_bak_file.close();
@@ -676,9 +707,9 @@ void fs_log_store::fill_buffer() {
     ulong first_idx = buf_->first_idx();
     idx_file_.seekg(0, std::fstream::end);
     data_file_.seekg(0, std::fstream::end);
-    ulong idx_file_len = idx_file_.tellg();
-    ulong data_file_len = data_file_.tellg();
-    if (idx_file_len > 0) {
+    if (idx_file_.tellg() > 0) {
+        ulong idx_file_len = idx_file_.tellg();
+        ulong data_file_len = data_file_.tellg();
         ulong idx_pos = (first_idx - start_idx_) * sz_ulong;
         idx_file_.seekg(idx_pos);
         ptr<buffer> idx_buf(std::move(buffer::alloc(static_cast<size_t>(idx_file_len - idx_pos))));
