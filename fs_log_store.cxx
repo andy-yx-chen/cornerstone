@@ -1,5 +1,4 @@
 #include "cornerstone.hxx"
-#include <filesystem>
 
 #define LOG_INDEX_FILE "store.idx"
 #define LOG_DATA_FILE "store.dat"
@@ -720,12 +719,14 @@ void fs_log_store::fill_buffer() {
             ulong data_end = idx_buf->get_ulong();
             ptr<buffer> buf = buffer::alloc(static_cast<size_t>(data_end - data_start));
             data_file_ >> *buf;
-            buf_->append(log_entry::deserialize(*buf));
+	    ptr<log_entry> entry = log_entry::deserialize(*buf);
+            buf_->append(entry);
             data_start = data_end;
         }
 
         ptr<buffer> last_buf = buffer::alloc(static_cast<size_t>(data_file_len - data_start));
         data_file_ >> *last_buf;
-        buf_->append(log_entry::deserialize(*last_buf));
+	ptr<log_entry> entry = log_entry::deserialize(*last_buf);
+        buf_->append(entry);
     }
 }
