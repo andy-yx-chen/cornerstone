@@ -117,5 +117,9 @@ void test_log_store() {
     ptr<log_entry> last2(store1.last_entry());
     assert(entry_equals(*item, *last2));
     store1.close();
+    fs_log_store store2(".", 100);
+    ptr<log_entry> last3(store2.last_entry());
+    assert(entry_equals(*item, *last3));
+    store2.close();
     cleanup();
 }
