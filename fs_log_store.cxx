@@ -21,13 +21,16 @@ int truncate(const char* path, ulong new_size) {
     LONG offset_high = (LONG)(new_size >> 32);
     LONG result = ::SetFilePointer(file_handle, offset, &offset_high, FILE_BEGIN);
     if (result == INVALID_SET_FILE_POINTER) {
+        CloseHandle(file_handle);
         return -1;
     }
 
     if (!::SetEndOfFile(file_handle)) {
+        CloseHandle(file_handle);
         return -1;
     }
 
+    CloseHandle(file_handle);
     return 0;
 }
 #undef max

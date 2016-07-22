@@ -19,6 +19,11 @@ namespace cornerstone{
         }
 
         buffer& get_buf() const {
+            // we accept nil buffer, but in that case, the get_buf() shouldn't be called, throw runtime exception instead of having segment fault (AV on Windows)
+            if (!buff_) {
+                throw std::runtime_error("get_buf cannot be called for a log_entry with nil buffer");
+            }
+
             return *buff_;
         }
 
