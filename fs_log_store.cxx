@@ -84,8 +84,8 @@ public:
 
     ptr<log_entry> operator[](ulong idx) {
         recur_lock(lock_);
-        int idx_within_buf = static_cast<int>(idx - start_idx_);
-        if (idx_within_buf >= buf_.size() || idx_within_buf < 0) {
+        size_t idx_within_buf = static_cast<size_t>(idx - start_idx_);
+        if (idx_within_buf >= buf_.size() || idx < start_idx_) {
             return ptr<log_entry>();
         }
 
@@ -121,11 +121,11 @@ public:
 
     ptr<buffer> pack(ulong start, int32 cnt) {
         recur_lock(lock_);
-        int offset = static_cast<int>(start - start_idx_);
-        int good_cnt = static_cast<int>(cnt > buf_.size() - offset ? buf_.size() - offset : cnt);
+        size_t offset = static_cast<size_t>(start - start_idx_);
+        size_t good_cnt = static_cast<size_t>((size_t)cnt > buf_.size() - offset ? buf_.size() - offset : cnt);
         std::vector<ptr<buffer>> buffers;
         size_t size = 0;
-        for (int i = offset; i < offset + good_cnt; ++offset) {
+        for (size_t i = offset; i < offset + good_cnt; ++offset) {
             ptr<buffer> buf = buf_[i]->serialize();
             size += buf->size();
         }
@@ -155,7 +155,7 @@ public:
             return;
         }
 
-        int index = static_cast<int>(start - start_idx_);
+        size_t index = static_cast<size_t>(start - start_idx_);
         if (index < buf_.size()) {
             buf_.erase(buf_.begin() + index, buf_.end());
         }
@@ -164,7 +164,7 @@ public:
     void append(ptr<log_entry>& entry) {
         recur_lock(lock_);
         buf_.push_back(entry);
-        if (max_size_ < buf_.size()) {
+        if ((size_t)max_size_ < buf_.size()) {
             buf_.erase(buf_.begin());
             start_idx_ += 1;
         }
@@ -255,7 +255,7 @@ fs_log_store::fs_log_store(const std::string& log_folder, int buf_size)
         entries_in_store_ = 0;
     }
 
-    buf_ = new log_store_buffer(entries_in_store_ > buf_size_ ? entries_in_store_ - buf_size_ + start_idx_ : start_idx_, buf_size_);
+    buf_ = new log_store_buffer(entries_in_store_ > (size_t)buf_size_ ? entries_in_store_ - buf_size_ + start_idx_ : start_idx_, buf_size_);
     fill_buffer();
 }
 
@@ -548,7 +548,7 @@ void fs_log_store::apply_pack(ulong index, buffer& pack) {
     }
 
     entries_in_store_ = local_idx + idx_len / sz_ulong;
-    buf_->reset(entries_in_store_ > buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
+    buf_->reset(entries_in_store_ > (size_t)buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
     fill_buffer();
 }
 
@@ -667,7 +667,7 @@ bool fs_log_store::compact(ulong last_log_index) {
         start_idx_file_.flush();
         start_idx_ = last_log_index + 1;
         entries_in_store_ -= (last_log_index - start_idx_ + 1);
-        buf_->reset(entries_in_store_ > buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
+        buf_->reset(entries_in_store_ > (size_t)buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
         fill_buffer();
         return true;
     } while (false);
