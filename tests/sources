@@ -23,4 +23,5 @@ SOURCES=\
 	..\peer.cxx\
 	test_impls.cxx\
 	test_log_store.cxx\
-	..\fs_log_store.cxx
+	..\fs_log_store.cxx\
+	test_ptr.cxx

@@ -16,6 +16,7 @@ __decl_test__(logger);
 __decl_test__(log_store);
 __decl_test__(raft_server);
 __decl_test__(log_store);
+__decl_test__(ptr);
 
 int main() {
     __run_test__(async_result);
@@ -26,5 +27,6 @@ int main() {
     __run_test__(logger);
     __run_test__(raft_server);
     __run_test__(log_store);
+    __run_test__(ptr);
     return 0;
 }
