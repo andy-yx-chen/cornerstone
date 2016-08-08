@@ -111,7 +111,7 @@ void test_log_store() {
 
     // test write at
     ptr<log_entry> item(rnd_entry(rnd));
-    rnd_idx = rnd() % store1.next_slot();
+    rnd_idx = rnd() % store1.next_slot() + 1;
     store1.write_at(rnd_idx, item);
     assert(rnd_idx + 1 == store1.next_slot());
     ptr<log_entry> last2(store1.last_entry());

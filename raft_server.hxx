@@ -36,7 +36,7 @@ namespace cornerstone {
             ready_to_stop_cv_(),
             resp_handler_((rpc_handler)std::bind(&raft_server::handle_peer_resp, this, std::placeholders::_1, std::placeholders::_2)),
             ex_resp_handler_((rpc_handler)std::bind(&raft_server::handle_ext_resp, this, std::placeholders::_1, std::placeholders::_2)){
-            uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
+            uint seed = (uint)(std::chrono::system_clock::now().time_since_epoch().count() * id_);
             std::default_random_engine engine(seed);
             std::uniform_int_distribution<int32> distribution(ctx->params_->election_timeout_lower_bound_, ctx->params_->election_timeout_upper_bound_);
             rand_timeout_ = std::bind(distribution, engine);

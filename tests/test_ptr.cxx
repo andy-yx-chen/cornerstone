@@ -67,7 +67,7 @@ public:
     }
 
 private:
-    ptr<Circular1> c1_;
+    ptr<Circular1&> c1_;
 };
 
 void test_ptr() {
@@ -90,5 +90,5 @@ void test_ptr() {
     assert(__ptr_test_derived_calls == 2);
     assert(__ptr_test_base_destroyed == 2);
     assert(__ptr_test_derived_destroyed == 1);
-    //assert(__ptr_test_circular_destroyed == 2);
+    assert(__ptr_test_circular_destroyed == 2);
 }
