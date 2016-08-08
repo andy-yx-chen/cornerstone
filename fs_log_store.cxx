@@ -397,6 +397,7 @@ ptr<std::vector<ptr<log_entry>>> fs_log_store::log_entries(ulong start, ulong en
             int data_sz = (int)(data_end - data_start);
             data_file_.seekg(data_start);
             ptr<buffer> entry_buf(std::move(buffer::alloc(data_sz)));
+            data_file_ >> *entry_buf;
             (*results)[i] = log_entry::deserialize(*entry_buf);
             data_start = data_end;
         }

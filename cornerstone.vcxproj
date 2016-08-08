@@ -176,6 +176,7 @@
     <ClCompile Include="tests\test_impls.cxx" />
     <ClCompile Include="tests\test_logger.cxx" />
     <ClCompile Include="tests\test_log_store.cxx" />
+    <ClCompile Include="tests\test_ptr.cxx" />
     <ClCompile Include="tests\test_raft_server.cxx" />
     <ClCompile Include="tests\test_runner.cxx" />
     <ClCompile Include="tests\test_scheduler.cxx" />
