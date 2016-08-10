@@ -269,6 +269,14 @@ namespace cornerstone {
             throw std::runtime_error("try to reference to a nilptr");
         }
 
+        inline ptr<T> operator &() {
+            if (*this) {
+                return ptr<T>(p_);
+            }
+
+            return ptr<T>();
+        }
+
     private:
         inline T* get() const {
             return p_ == nilptr ? nilptr : reinterpret_cast<T*>(reinterpret_cast<ref_counter_t*>(p_) + 2);

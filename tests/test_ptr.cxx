@@ -72,18 +72,26 @@ private:
 
 void test_ptr() {
     {
-        ptr<Base> b(cs_new<Base>(1));
-        ptr<Base> b1(cs_new<Derived>(1));
-        assert(b->get_value() == 1);
-        assert(b1->get_value() == 11);
-        b->func();
-        b1->func();
-        b = b1;
-        b->func();
+        ptr<Circular1&> c1ref;
+        {
+            ptr<Base> b(cs_new<Base>(1));
+            ptr<Base> b1(cs_new<Derived>(1));
+            assert(b->get_value() == 1);
+            assert(b1->get_value() == 11);
+            b->func();
+            b1->func();
+            b = b1;
+            b->func();
 
-        ptr<Circular1> c1(cs_new<Circular1>());
-        ptr<Circular2> c2(cs_new<Circular2>(c1));
-        c1->set_c2(c2);
+            ptr<Circular1> c1(cs_new<Circular1>());
+            ptr<Circular2> c2(cs_new<Circular2>(c1));
+            c1->set_c2(c2);
+            c1ref = c1;
+            ptr<Circular1> pc1 = &c1ref;
+            assert(pc1 == true);
+        }
+
+        assert(c1ref == false);
     }
 
     assert(__ptr_test_base_calls == 1);
