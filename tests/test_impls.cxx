@@ -357,7 +357,10 @@ private:
             msg.second->set_result(resp, no_err);
         }
 
-        stopped_cv_.notify_all();
+        {
+            auto_lock(stop_lock_);
+            stopped_cv_.notify_all();
+        }
     }
 
 private:
