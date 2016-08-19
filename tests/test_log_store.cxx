@@ -1,22 +1,45 @@
 #include "../cornerstone.hxx"
 #include <cassert>
 
-#define LOG_INDEX_FILE "store.idx"
-#define LOG_DATA_FILE "store.dat"
-#define LOG_START_INDEX_FILE "store.sti"
-#define LOG_INDEX_FILE_BAK "store.idx.bak"
-#define LOG_DATA_FILE_BAK "store.dat.bak"
-#define LOG_START_INDEX_FILE_BAK "store.sti.bak"
+#define LOG_INDEX_FILE "\\store.idx"
+#define LOG_DATA_FILE "\\store.dat"
+#define LOG_START_INDEX_FILE "\\store.sti"
+#define LOG_INDEX_FILE_BAK "\\store.idx.bak"
+#define LOG_DATA_FILE_BAK "\\store.dat.bak"
+#define LOG_START_INDEX_FILE_BAK "\\store.sti.bak"
 
 using namespace cornerstone;
 
+#ifdef _WIN32
+#include <Windows.h>
+
+int mkdir(const char* path, int mode) {
+    (void)mode;
+    return 1 == ::CreateDirectoryA(path, NULL) ? 0 : -1;
+}
+
+int rmdir(const char* path) {
+    return 1 == ::RemoveDirectoryA(path) ? 0 : -1;
+}
+#undef min
+#undef max
+#else
+#incldue <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
+static void cleanup(const std::string& folder) {
+    std::remove((folder + LOG_INDEX_FILE).c_str());
+    std::remove((folder + LOG_DATA_FILE).c_str());
+    std::remove((folder + LOG_START_INDEX_FILE).c_str());
+    std::remove((folder + LOG_INDEX_FILE_BAK).c_str());
+    std::remove((folder + LOG_DATA_FILE_BAK).c_str());
+    std::remove((folder + LOG_START_INDEX_FILE_BAK).c_str());
+}
+
 static void cleanup() {
-    std::remove(LOG_INDEX_FILE);
-    std::remove(LOG_DATA_FILE);
-    std::remove(LOG_START_INDEX_FILE);
-    std::remove(LOG_INDEX_FILE_BAK);
-    std::remove(LOG_DATA_FILE_BAK);
-    std::remove(LOG_START_INDEX_FILE_BAK);
+    cleanup(".");
 }
 
 static ptr<log_entry> rnd_entry(std::function<int32()>& rnd) {
@@ -121,5 +144,154 @@ void test_log_store() {
     ptr<log_entry> last3(store2.last_entry());
     assert(entry_equals(*item, *last3));
     store2.close();
+    cleanup();
+}
+
+void test_log_store_buffer() {
+    uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine engine(seed);
+    std::uniform_int_distribution<int32> distribution(1, 10000);
+    std::function<int32()> rnd = std::bind(distribution, engine);
+
+    cleanup();
+    fs_log_store store(".", 1000);
+    int logs_count = rnd() % 1000 + 1500;
+    std::vector<ptr<log_entry>> entries;
+    for (int i = 0; i < logs_count; ++i) {
+        ptr<log_entry> entry(rnd_entry(rnd));
+        store.append(entry);
+        entries.push_back(entry);
+    }
+
+    int start = rnd() % (logs_count - 1000);
+    int end = logs_count - 500;
+    ptr<std::vector<ptr<log_entry>>> results = store.log_entries((ulong)start + 1, (ulong)end + 1);
+    for (int i = start; i < end; ++i) {
+        entry_equals(*entries[i], *(*results)[i - start]);
+    }
+
+    store.close();
+    cleanup();
+}
+
+void test_log_store_pack() {
+    uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine engine(seed);
+    std::uniform_int_distribution<int32> distribution(1, 10000);
+    std::function<int32()> rnd = std::bind(distribution, engine);
+
+    cleanup();
+    cleanup("tmp");
+    mkdir("tmp", 0x766);
+    fs_log_store store(".", 1000);
+    fs_log_store store1("tmp", 1000);
+    int logs_cnt = rnd() % 1000 + 1000;
+    for (int i = 0; i < logs_cnt; ++i) {
+        ptr<log_entry> entry = rnd_entry(rnd);
+        store.append(entry);
+        entry = rnd_entry(rnd);
+        store1.append(entry);
+    }
+
+    int logs_copied = 0;
+    while (logs_copied < logs_cnt) {
+        ptr<buffer> pack = store.pack(logs_copied + 1, 100);
+        store1.apply_pack(logs_copied + 1, *pack);
+        logs_copied += std::min(logs_copied + 100, logs_cnt);
+    }
+
+    assert(store1.next_slot() == store.next_slot());
+    for (int i = 1; i <= logs_cnt; ++i) {
+        ptr<log_entry> entry1 = store.entry_at((ulong)i);
+        ptr<log_entry> entry2 = store1.entry_at((ulong)i);
+        assert(entry_equals(*entry1, *entry2));
+    }
+
+    store.close();
+    store1.close();
+    cleanup();
+    cleanup("tmp");
+    rmdir("tmp");
+}
+
+void test_log_store_compact_all() {
+    uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine engine(seed);
+    std::uniform_int_distribution<int32> distribution(1, 10000);
+    std::function<int32()> rnd = std::bind(distribution, engine);
+    
+    cleanup();
+    fs_log_store store(".", 1000);
+    int cnt = rnd() % 1000 + 100;
+    std::vector<ptr<log_entry>> entries;
+    for (int i = 0; i < cnt; ++i) {
+        ptr<log_entry> entry(rnd_entry(rnd));
+        store.append(entry);
+        entries.push_back(entry);
+    }
+
+    assert(1 == store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
+    ulong last_idx = entries.size();
+    store.compact(last_idx);
+    assert(entries.size() + 1 == (size_t)store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+
+    cnt = rnd() % 100 + 10;
+    for (int i = 0; i < cnt; ++i) {
+        ptr<log_entry> entry(rnd_entry(rnd));
+        entries.push_back(entry);
+        store.append(entry);
+    }
+
+    assert(entries.size() + 1 == (size_t)store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
+
+    ulong index = store.start_index() + rnd() % (store.next_slot() - store.start_index());
+    assert(entry_equals(*entries[(size_t)index - 1], *store.last_entry()));
+    store.close();
+    cleanup();
+}
+
+void test_log_store_compact_random() {
+    uint seed = (uint)std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine engine(seed);
+    std::uniform_int_distribution<int32> distribution(1, 10000);
+    std::function<int32()> rnd = std::bind(distribution, engine);
+
+    cleanup();
+    fs_log_store store(".", 1000);
+    int cnt = rnd() % 1000 + 100;
+    std::vector<ptr<log_entry>> entries;
+    for (int i = 0; i < cnt; ++i) {
+        ptr<log_entry> entry(rnd_entry(rnd));
+        store.append(entry);
+        entries.push_back(entry);
+    }
+
+    assert(1 == store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
+    ulong last_idx = entries.size();
+    store.compact(last_idx);
+    assert(entries.size() + 1 == (size_t)store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+
+    cnt = rnd() % 100 + 10;
+    for (int i = 0; i < cnt; ++i) {
+        ptr<log_entry> entry(rnd_entry(rnd));
+        entries.push_back(entry);
+        store.append(entry);
+    }
+
+    assert(entries.size() + 1 == (size_t)store.start_index());
+    assert(entries.size() == (size_t)store.next_slot() - 1);
+    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
+
+    ulong index = store.start_index() + rnd() % (store.next_slot() - store.start_index());
+    assert(entry_equals(*entries[(size_t)index - 1], *store.last_entry()));
+    store.close();
     cleanup();
 }
