@@ -238,6 +238,10 @@ fs_log_store::fs_log_store(const std::string& log_folder, int buf_size)
         start_idx_file_.open(log_folder_ + LOG_START_INDEX_FILE, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
 
+    if (!idx_file_ || !data_file_ || !start_idx_file_) {
+        throw std::runtime_error("fail to create store files");
+    }
+
     if (start_idx_file_.tellp() > 0) {
         start_idx_file_.seekg(0, std::fstream::beg);
         ptr<buffer> idx_buf(buffer::alloc(sz_ulong));
@@ -292,6 +296,10 @@ ulong fs_log_store::append(ptr<log_entry>& entry) {
     entries_in_store_ += 1;
     idx_file_.flush();
     data_file_.flush();
+    if (!data_file_ || !idx_file_) {
+        throw std::runtime_error("IO fails, data cannot be saved");
+    }
+
     return start_idx_ + entries_in_store_ - 1;
 }
 
@@ -350,7 +358,10 @@ void fs_log_store::write_at(ulong index, ptr<log_entry>& entry) {
     }
 
     buf_->append(entry);
-    entries_in_store_ = index;
+    entries_in_store_ = local_idx;
+    if (!data_file_ || !idx_file_) {
+        throw std::runtime_error("IO fails, data cannot be saved");
+    }
 }
 
 ptr<std::vector<ptr<log_entry>>> fs_log_store::log_entries(ulong start, ulong end) {
@@ -385,6 +396,10 @@ ptr<std::vector<ptr<log_entry>>> fs_log_store::log_entries(ulong start, ulong en
     if (start < buffer_first_idx) {
         // in this case, we need to read from store file
         recur_lock(store_lock_);
+        if (!data_file_ || !idx_file_) {
+            throw std::runtime_error("IO fails, data cannot be saved");
+        }
+
         lend = buffer_first_idx - start_idx_;
         idx_file_.seekg(lstart * sz_ulong);
         ptr<buffer> d_start_idx_buf(std::move(buffer::alloc(sz_ulong)));
@@ -421,6 +436,10 @@ ptr<log_entry> fs_log_store::entry_at(ulong index) {
             throw std::range_error("index out of range");
         }
 
+        if (!data_file_ || !idx_file_) {
+            throw std::runtime_error("IO fails, data cannot be saved");
+        }
+
         if (index >= start_idx_ + entries_in_store_) {
             return ptr<log_entry>();
         }
@@ -451,6 +470,10 @@ ulong fs_log_store::term_at(ulong index) {
             throw std::range_error("index out of range");
         }
 
+        if (!data_file_ || !idx_file_) {
+            throw std::runtime_error("IO fails, data cannot be saved");
+        }
+
         idx_file_.seekg(static_cast<int>(index - start_idx_) * sz_ulong);
         ptr<buffer> d_start_idx_buf(std::move(buffer::alloc(sz_ulong)));
         idx_file_ >> *d_start_idx_buf;
@@ -470,13 +493,17 @@ ptr<buffer> fs_log_store::pack(ulong index, int32 cnt) {
         throw std::range_error("index out of range");
     }
 
+    if (!data_file_ || !idx_file_) {
+        throw std::runtime_error("IO fails, data cannot be saved");
+    }
+
     ulong offset = index - start_idx_;
     if (offset >= entries_in_store_) {
-        return buffer::alloc(0);
+        return ptr<buffer>();
     }
 
     ulong end_offset = std::min(offset + cnt, entries_in_store_);
-    idx_file_.seekg(static_cast<int>(end_offset - offset) * sz_ulong);
+    idx_file_.seekg(static_cast<int>(offset) * sz_ulong);
     bool read_to_end = end_offset == entries_in_store_;
     ptr<buffer> idx_buf(std::move(buffer::alloc(static_cast<int>(end_offset - offset) * sz_ulong)));
     idx_file_ >> *idx_buf;
@@ -490,6 +517,7 @@ ptr<buffer> fs_log_store::pack(ulong index, int32 cnt) {
         idx_file_ >> *end_d_idx_buf;
         end_of_data = end_d_idx_buf->get_ulong();
     }
+
     idx_buf->pos(0);
     ulong start_of_data = idx_buf->get_ulong();
     idx_buf->pos(0);
@@ -548,6 +576,10 @@ void fs_log_store::apply_pack(ulong index, buffer& pack) {
         data_file_.open(data_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
 
+    if (!data_file_ || !idx_file_) {
+        throw std::runtime_error("IO fails, data cannot be saved");
+    }
+
     entries_in_store_ = local_idx + idx_len / sz_ulong;
     buf_->reset(entries_in_store_ > (size_t)buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
     fill_buffer();
@@ -575,10 +607,31 @@ bool fs_log_store::compact(ulong last_log_index) {
 
     std::fstream idx_bak_file, data_bak_file, start_idx_bak_file;
     idx_bak_file.open(idx_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    if (!idx_bak_file) {
+        idx_bak_file.open(idx_bak_path, std::fstream::out);
+        idx_bak_file.close();
+        idx_bak_file.open(idx_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    }
+
     data_bak_file.open(data_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    if (!data_bak_file) {
+        data_bak_file.open(data_bak_path, std::fstream::out);
+        data_bak_file.close();
+        data_bak_file.open(data_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    }
+
     start_idx_bak_file.open(start_idx_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    if (!start_idx_bak_file) {
+        start_idx_bak_file.open(start_idx_bak_path, std::fstream::out);
+        start_idx_bak_file.close();
+        start_idx_bak_file.open(start_idx_bak_path, std::fstream::in | std::fstream::out | std::fstream::binary);
+    }
+
     if (!idx_bak_file || !data_bak_file || !start_idx_bak_file) return false; //we cannot proceed as backup files are bad
 
+    idx_file_.seekg(0);
+    data_file_.seekg(0);
+    start_idx_file_.seekg(0);
     idx_bak_file << idx_file_.rdbuf();
     data_bak_file << data_file_.rdbuf();
     start_idx_bak_file << start_idx_file_.rdbuf();
@@ -593,7 +646,11 @@ bool fs_log_store::compact(ulong last_log_index) {
             data_file_.close();
             if (std::remove(idx_file_path.c_str()) != 0) break;
             if (std::remove(data_file_path.c_str()) != 0) break;
+            idx_file_.open(idx_file_path, std::fstream::out);
+            idx_file_.close();
             idx_file_.open(idx_file_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+            data_file_.open(data_file_path, std::fstream::out);
+            data_file_.close();
             data_file_.open(data_file_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
             if (!idx_file_ || !data_file_) break;
 
@@ -646,6 +703,7 @@ bool fs_log_store::compact(ulong last_log_index) {
             ulong new_pos = data_pos_buf->get_ulong() - data_pos;
             data_pos_buf->pos(0);
             data_pos_buf->put(new_pos);
+            data_pos_buf->pos(0);
             idx_file_ << *data_pos_buf;
         }
 
@@ -666,8 +724,8 @@ bool fs_log_store::compact(ulong last_log_index) {
         start_idx_buf->pos(0);
         start_idx_file_ << *start_idx_buf;
         start_idx_file_.flush();
-        start_idx_ = last_log_index + 1;
         entries_in_store_ -= (last_log_index - start_idx_ + 1);
+        start_idx_ = last_log_index + 1;
         buf_->reset(entries_in_store_ > (size_t)buf_size_ ? entries_in_store_ + start_idx_ - buf_size_ : start_idx_);
         fill_buffer();
         return true;
@@ -683,9 +741,19 @@ bool fs_log_store::compact(ulong last_log_index) {
     idx_bak_file.seekg(0);
     data_bak_file.seekg(0);
     start_idx_bak_file.seekg(0);
+    data_file_.open(data_bak_path, std::fstream::out);
+    data_file_.close();
     data_file_.open(data_file_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    idx_file_.open(idx_file_path, std::fstream::out);
+    idx_file_.close();
     idx_file_.open(idx_file_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    start_idx_file_.open(start_idx_file_path, std::fstream::out);
+    start_idx_file_.close();
     start_idx_file_.open(start_idx_file_path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+    if (!idx_file_ || !data_file_ || !start_idx_file_) {
+        throw std::runtime_error("IO error, fails to restore files back.");
+    }
+
     data_file_ << data_bak_file.rdbuf();
     idx_file_ << idx_bak_file.rdbuf();
     start_idx_file_ << start_idx_bak_file.rdbuf();

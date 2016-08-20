@@ -192,13 +192,31 @@ void buffer::put(const buffer& buf) {
 }
 
 std::ostream& cornerstone::operator << (std::ostream& out, buffer& buf) {
+    if (!out) {
+        throw std::ios::failure("bad output stream.");
+    }
+
     out.write(reinterpret_cast<char*>(buf.data()), buf.size() - buf.pos());
+
+    if (!out) {
+        throw std::ios::failure("write failed");
+    }
+
     return out;
 }
 
 std::istream& cornerstone::operator >> (std::istream& in, buffer& buf) {
+    if (!in) {
+        throw std::ios::failure("bad input stream");
+    }
+
     char* data = reinterpret_cast<char*>(buf.data());
     int size = buf.size() - buf.pos();
     in.read(data, size);
+
+    if (!in) {
+        throw std::ios::failure("read failed");
+    }
+
     return in;
 }

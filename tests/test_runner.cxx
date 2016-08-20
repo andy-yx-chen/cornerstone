@@ -20,6 +20,7 @@ __decl_test__(ptr);
 __decl_test__(log_store_buffer);
 __decl_test__(log_store_pack);
 __decl_test__(log_store_compact_all);
+__decl_test__(log_store_compact_random);
 
 int main() {
     __run_test__(async_result);
@@ -29,9 +30,10 @@ int main() {
     __run_test__(scheduler);
     __run_test__(logger);
     __run_test__(log_store);
-    //__run_test__(log_store_buffer);
-    //__run_test__(log_store_pack);
-    //__run_test__(log_store_compact_all);
+    __run_test__(log_store_buffer);
+    __run_test__(log_store_pack);
+    __run_test__(log_store_compact_all);
+    __run_test__(log_store_compact_random);
     __run_test__(ptr);
     __run_test__(raft_server);
     return 0;

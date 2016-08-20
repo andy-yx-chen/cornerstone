@@ -1,6 +1,9 @@
 #include "../cornerstone.hxx"
 #include <cassert>
 
+using namespace cornerstone;
+
+#ifdef _WIN32
 #define LOG_INDEX_FILE "\\store.idx"
 #define LOG_DATA_FILE "\\store.dat"
 #define LOG_START_INDEX_FILE "\\store.sti"
@@ -8,9 +11,6 @@
 #define LOG_DATA_FILE_BAK "\\store.dat.bak"
 #define LOG_START_INDEX_FILE_BAK "\\store.sti.bak"
 
-using namespace cornerstone;
-
-#ifdef _WIN32
 #include <Windows.h>
 
 int mkdir(const char* path, int mode) {
@@ -24,7 +24,14 @@ int rmdir(const char* path) {
 #undef min
 #undef max
 #else
-#incldue <unistd.h>
+#define LOG_INDEX_FILE "/store.idx"
+#define LOG_DATA_FILE "/store.dat"
+#define LOG_START_INDEX_FILE "/store.sti"
+#define LOG_INDEX_FILE_BAK "/store.idx.bak"
+#define LOG_DATA_FILE_BAK "/store.dat.bak"
+#define LOG_START_INDEX_FILE_BAK "/store.sti.bak"
+
+#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif
@@ -197,7 +204,7 @@ void test_log_store_pack() {
     while (logs_copied < logs_cnt) {
         ptr<buffer> pack = store.pack(logs_copied + 1, 100);
         store1.apply_pack(logs_copied + 1, *pack);
-        logs_copied += std::min(logs_copied + 100, logs_cnt);
+        logs_copied = std::min(logs_copied + 100, logs_cnt);
     }
 
     assert(store1.next_slot() == store.next_slot());
@@ -234,7 +241,7 @@ void test_log_store_compact_all() {
     assert(entries.size() == (size_t)store.next_slot() - 1);
     assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
     ulong last_idx = entries.size();
-    store.compact(last_idx);
+    assert(store.compact(last_idx));
     assert(entries.size() + 1 == (size_t)store.start_index());
     assert(entries.size() == (size_t)store.next_slot() - 1);
 
@@ -245,12 +252,12 @@ void test_log_store_compact_all() {
         store.append(entry);
     }
 
-    assert(entries.size() + 1 == (size_t)store.start_index());
+    assert(last_idx + 1 == (size_t)store.start_index());
     assert(entries.size() == (size_t)store.next_slot() - 1);
     assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
 
     ulong index = store.start_index() + rnd() % (store.next_slot() - store.start_index());
-    assert(entry_equals(*entries[(size_t)index - 1], *store.last_entry()));
+    assert(entry_equals(*entries[(size_t)index - 1], *store.entry_at(index)));
     store.close();
     cleanup();
 }
@@ -271,27 +278,40 @@ void test_log_store_compact_random() {
         entries.push_back(entry);
     }
 
-    assert(1 == store.start_index());
-    assert(entries.size() == (size_t)store.next_slot() - 1);
-    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
-    ulong last_idx = entries.size();
-    store.compact(last_idx);
-    assert(entries.size() + 1 == (size_t)store.start_index());
-    assert(entries.size() == (size_t)store.next_slot() - 1);
+    ulong last_log_idx = entries.size();
+    ulong idx_to_compact = rnd() % (last_log_idx - 10) + 1;
+    assert(store.compact(idx_to_compact));
+
+    assert(store.start_index() == (idx_to_compact + 1));
+    assert(store.next_slot() == (entries.size() + 1));
+
+    for (size_t i = 0; i < store.next_slot() - idx_to_compact - 1; ++i) {
+        ptr<log_entry> entry = store.entry_at(store.start_index() + i);
+        assert(entry_equals(*entry, *entries[i + (size_t)idx_to_compact]));
+    }
+
+    ulong rnd_idx = (ulong)rnd() % (store.next_slot() - store.start_index()) + store.start_index();
+    ptr<log_entry> entry = rnd_entry(rnd);
+    store.write_at(rnd_idx, entry);
+    entries[(size_t)rnd_idx - 1] = entry;
+    entries.erase(entries.begin() + (size_t)rnd_idx, entries.end());
+
+    for (size_t i = 0; i < store.next_slot() - idx_to_compact - 1; ++i) {
+        ptr<log_entry> entry = store.entry_at(store.start_index() + i);
+        assert(entry_equals(*entry, *entries[i + (size_t)idx_to_compact]));
+    }
 
     cnt = rnd() % 100 + 10;
     for (int i = 0; i < cnt; ++i) {
-        ptr<log_entry> entry(rnd_entry(rnd));
+        ptr<log_entry> entry = rnd_entry(rnd);
         entries.push_back(entry);
         store.append(entry);
     }
 
-    assert(entries.size() + 1 == (size_t)store.start_index());
-    assert(entries.size() == (size_t)store.next_slot() - 1);
-    assert(entry_equals(*entries[entries.size() - 1], *store.last_entry()));
-
-    ulong index = store.start_index() + rnd() % (store.next_slot() - store.start_index());
-    assert(entry_equals(*entries[(size_t)index - 1], *store.last_entry()));
+    for (size_t i = 0; i < store.next_slot() - idx_to_compact - 1; ++i) {
+        ptr<log_entry> entry = store.entry_at(store.start_index() + i);
+        assert(entry_equals(*entry, *entries[i + (size_t)idx_to_compact]));
+    }
     store.close();
     cleanup();
 }
