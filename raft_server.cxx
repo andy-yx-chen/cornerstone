@@ -740,6 +740,7 @@ void raft_server::reconfigure(const ptr<cluster_config>& new_config) {
         if (pit != peers_.end()) {
             pit->second->enable_hb(false);
             peers_.erase(pit);
+            l_.info(sstrfmt("server %d is removed from cluster").fmt(srv_removed));
         }
         else {
             l_.info(sstrfmt("peer %d cannot be found, no action for removing").fmt(srv_removed));
@@ -975,9 +976,32 @@ void raft_server::handle_ext_resp_err(rpc_exception& err) {
         }
 
         if (p != nilptr) {
-            if (p->get_current_hb_interval() > ctx_->params_->max_hb_interval()) {
+            if (p->get_current_hb_interval() >= ctx_->params_->max_hb_interval()) {
                 if (req->get_type() == msg_type::leave_cluster_request) {
                     l_.info(lstrfmt("rpc failed again for the removing server (%d), will remove this server directly").fmt(p->get_id()));
+
+                    /**
+                    * In case of there are only two servers in the cluster, it safe to remove the server directly from peers
+                    * as at most one config change could happen at a time
+                    *  prove:
+                    *      assume there could be two config changes at a time
+                    *      this means there must be a leader after previous leader offline, which is impossible
+                    *      (no leader could be elected after one server goes offline in case of only two servers in a cluster)
+                    * so the bug https://groups.google.com/forum/#!topic/raft-dev/t4xj6dJTP6E
+                    * does not apply to cluster which only has two members
+                    */
+                    if (peers_.size() == 1) {
+                        peer_itor pit = peers_.find(p->get_id());
+                        if (pit != peers_.end()) {
+                            pit->second->enable_hb(false);
+                            peers_.erase(pit);
+                            l_.info(sstrfmt("server %d is removed from cluster").fmt(p->get_id()));
+                        }
+                        else {
+                            l_.info(sstrfmt("peer %d cannot be found, no action for removing").fmt(p->get_id()));
+                        }
+                    }
+
                     rm_srv_from_cluster(p->get_id());
                 }
                 else {
