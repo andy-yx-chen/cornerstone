@@ -102,16 +102,13 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req) {
 
         // dealing with overwrites
         while (idx < log_store_->next_slot() && log_idx < req.log_entries().size()) {
-            if (idx <= config_->get_log_idx()) {
-                // we need to restore the configuration from previous committed configuration
-                reconfigure(ctx_->state_mgr_.load_config());
-                l_.info(sstrfmt("revert a previous config change to config at %llu").fmt(config_->get_log_idx()));
-                config_changing_ = false;
-            }
-
             ptr<log_entry> old_entry(log_store_->entry_at(idx));
             if (old_entry->get_val_type() == log_val_type::app_log) {
                 state_machine_.rollback(idx, old_entry->get_buf());
+            }
+            else if (old_entry->get_val_type() == log_val_type::conf) {
+                l_.info(sstrfmt("revert from a prev config change to config at %llu").fmt(config_->get_log_idx()));
+                config_changing_ = false;
             }
 
             log_store_->write_at(idx++, req.log_entries().at(log_idx++));
@@ -120,17 +117,14 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req) {
         // append new log entries
         while (log_idx < req.log_entries().size()) {
             ptr<log_entry> entry = req.log_entries().at(log_idx ++);
-            log_store_->append(entry);
+            ulong idx_for_entry = log_store_->append(entry);
             if (entry->get_val_type() == log_val_type::conf) {
-                entry->get_buf().pos(0);
-                ptr<cluster_config> new_conf = cluster_config::deserialize(entry->get_buf());
-                l_.info(sstrfmt("receive a config change from leader at %llu").fmt(new_conf->get_log_idx()));
-                reconfigure(new_conf);
+                l_.info(sstrfmt("receive a config change from leader at %llu").fmt(idx_for_entry));
                 config_changing_ = true;
 
             }
             else {
-                state_machine_.pre_commit(log_store_->next_slot() - 1, entry->get_buf());
+                state_machine_.pre_commit(idx_for_entry, entry->get_buf());
             }
         }
     }
@@ -179,7 +173,7 @@ void raft_server::handle_election_timeout() {
     if (steps_to_down_ > 0) {
         if (--steps_to_down_ == 0) {
             l_.info("no hearing further news from leader, remove this server from cluster and step down");
-            for (std::list<ptr<srv_config>>::const_iterator it = config_->get_servers().begin();
+            for (std::list<ptr<srv_config>>::iterator it = config_->get_servers().begin();
                 it != config_->get_servers().end();
                 ++it) {
                 if ((*it)->get_id() == id_) {
@@ -690,43 +684,58 @@ ptr<req_msg> raft_server::create_append_entries_req(peer& p) {
 }
 
 void raft_server::reconfigure(const ptr<cluster_config>& new_config) {
-    // according to our design, the new configuration never send to a server that is removed
-    // so, in this method, we are not considering self get removed scenario
     l_.debug(
         lstrfmt("system is reconfigured to have %d servers, last config index: %llu, this config index: %llu")
         .fmt(new_config->get_servers().size(), new_config->get_prev_log_idx(), new_config->get_log_idx()));
 
     // we only allow one server to be added or removed at a time
-    int32 srv_removed = -1;
-    ptr<srv_config> srv_added;
+    std::vector<int32> srvs_removed;
+    std::vector<ptr<srv_config>> srvs_added;
     std::list<ptr<srv_config>>& new_srvs(new_config->get_servers());
     for (std::list<ptr<srv_config>>::const_iterator it = new_srvs.begin(); it != new_srvs.end(); ++it) {
         peer_itor pit = peers_.find((*it)->get_id());
         if (pit == peers_.end()) {
-            srv_added = *it;
-            break;
+            srvs_added.push_back(*it);
         }
     }
 
     for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
-        if (new_config->get_server(it->first) == nilptr) {
-            srv_removed = it->first;
-            break;
+        if (!new_config->get_server(it->first)) {
+            srvs_removed.push_back(it->first);
         }
     }
 
-    if (srv_added != nilptr && srv_added->get_id() != id_) {
+    if (!new_config->get_server(id_)) {
+        srvs_removed.push_back(id_);
+    }
+
+    for (std::vector<ptr<srv_config>>::const_iterator it = srvs_added.begin(); it != srvs_added.end(); ++it) {
+        ptr<srv_config> srv_added(*it);
         timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
         ptr<peer> p = cs_new<peer, srv_config&, context&, timer_task<peer&>::executor&>(*srv_added, *ctx_, exec);
+        p->set_next_log_idx(log_store_->next_slot());
         peers_.insert(std::make_pair(srv_added->get_id(), p));
         l_.info(sstrfmt("server %d is added to cluster").fmt(srv_added->get_id()));
         if (role_ == srv_role::leader) {
             l_.info(sstrfmt("enable heartbeating for server %d").fmt(srv_added->get_id()));
             enable_hb_for_peer(*p);
+            if (srv_to_join_ && srv_to_join_->get_id() == p->get_id()) {
+                p->set_next_log_idx(srv_to_join_->get_next_log_idx());
+                srv_to_join_.reset();
+            }
         }
     }
 
-    if (srv_removed >= 0) {
+    for (std::vector<int32>::const_iterator it = srvs_removed.begin(); it != srvs_removed.end(); ++it) {
+        int32 srv_removed = *it;
+        if (srv_removed == id_ && !catching_up_) {
+            // this server is removed from cluster
+            ctx_->state_mgr_.save_config(*new_config);
+            l_.info("server has been removed, step down");
+            ctx_->state_mgr_.system_exit(0);
+            return;
+        }
+
         peer_itor pit = peers_.find(srv_removed);
         if (pit != peers_.end()) {
             pit->second->enable_hb(false);
@@ -1095,9 +1104,6 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
         ptr<buffer> new_conf_buf(new_conf->serialize());
         ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), new_conf_buf, log_val_type::conf));
         log_store_->append(entry);
-        config_ = new_conf;
-        enable_hb_for_peer(*srv_to_join_);
-        peers_.insert(std::make_pair(srv_to_join_->get_id(), srv_to_join_));
         config_changing_ = true;
         request_append_entries();
         return;
@@ -1160,13 +1166,6 @@ ptr<resp_msg> raft_server::handle_leave_cluster_req(req_msg& req) {
 }
 
 void raft_server::rm_srv_from_cluster(int32 srv_id) {
-    peer_itor it = peers_.find(srv_id);
-    if (it == peers_.end()) {
-        return;
-    }
-
-    it->second->enable_hb(false);
-    peers_.erase(it);
     ptr<cluster_config> new_conf = cs_new<cluster_config>(log_store_->next_slot(), config_->get_log_idx());
     for (cluster_config::const_srv_itor it = config_->get_servers().begin(); it != config_->get_servers().end(); ++it) {
         if ((*it)->get_id() != srv_id) {
@@ -1179,7 +1178,6 @@ void raft_server::rm_srv_from_cluster(int32 srv_id) {
     ptr<buffer> new_conf_buf(new_conf->serialize());
     ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), new_conf_buf, log_val_type::conf));
     log_store_->append(entry);
-    config_ = new_conf;
     request_append_entries();
 }
 
