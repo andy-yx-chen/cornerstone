@@ -47,10 +47,27 @@ namespace cornerstone {
                 state_->set_voted_for(-1);
             }
 
+            /**
+            * I found this implementation is also a victim of bug https://groups.google.com/forum/#!topic/raft-dev/t4xj6dJTP6E
+            * As the implementation is based on Diego's thesis
+            * Fix:
+            * We should never load configurations that is not committed,
+            *   this prevents an old server from replicating an obsoleted config to other servers
+            * The prove is as below:
+            * Assume S0 is the last committed server set for the old server A
+            * |- EXITS Log l which has been committed but l !BELONGS TO A.logs =>  Vote(A) < Majority(S0)
+            * In other words, we need to prove that A cannot be elected to leader if any logs/configs has been committed.
+            * Case #1, There is no configuration change since S0, then it's obvious that Vote(A) < Majority(S0), see the core Algorithm
+            * Case #2, There are one or more configuration changes since S0, then at the time of first configuration change was committed,
+            *      there are at least Majority(S0 - 1) servers committed the configuration change
+            *      Majority(S0 - 1) + Majority(S0) > S0 => Vote(A) < Majority(S0)
+            * -|
+            */
             for (ulong i = std::max(state_->get_commit_idx() + 1, log_store_->start_index()); i < log_store_->next_slot(); ++i) {
                 ptr<log_entry> entry(log_store_->entry_at(i));
                 if (entry->get_val_type() == log_val_type::conf) {
-                    config_ = cluster_config::deserialize(entry->get_buf());
+                    l_.info(sstrfmt("detect a configuration change that is not committed yet at index %llu").fmt(i));
+                    config_changing_ = true;
                     break;
                 }
             }

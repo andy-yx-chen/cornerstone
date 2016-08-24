@@ -105,6 +105,8 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req) {
             if (idx <= config_->get_log_idx()) {
                 // we need to restore the configuration from previous committed configuration
                 reconfigure(ctx_->state_mgr_.load_config());
+                l_.info(sstrfmt("revert a previous config change to config at %llu").fmt(config_->get_log_idx()));
+                config_changing_ = false;
             }
 
             ptr<log_entry> old_entry(log_store_->entry_at(idx));
@@ -120,7 +122,12 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req) {
             ptr<log_entry> entry = req.log_entries().at(log_idx ++);
             log_store_->append(entry);
             if (entry->get_val_type() == log_val_type::conf) {
-                reconfigure(cluster_config::deserialize(entry->get_buf()));
+                entry->get_buf().pos(0);
+                ptr<cluster_config> new_conf = cluster_config::deserialize(entry->get_buf());
+                l_.info(sstrfmt("receive a config change from leader at %llu").fmt(new_conf->get_log_idx()));
+                reconfigure(new_conf);
+                config_changing_ = true;
+
             }
             else {
                 state_machine_.pre_commit(log_store_->next_slot() - 1, entry->get_buf());
@@ -171,7 +178,17 @@ void raft_server::handle_election_timeout() {
     recur_lock(lock_);
     if (steps_to_down_ > 0) {
         if (--steps_to_down_ == 0) {
-            l_.info("no hearing further news from leader, step down");
+            l_.info("no hearing further news from leader, remove this server from cluster and step down");
+            for (std::list<ptr<srv_config>>::const_iterator it = config_->get_servers().begin();
+                it != config_->get_servers().end();
+                ++it) {
+                if ((*it)->get_id() == id_) {
+                    config_->get_servers().erase(it);
+                    ctx_->state_mgr_.save_config(*config_);
+                    break;
+                }
+            }
+
             ctx_->state_mgr_.system_exit(-1);
             ::exit(0);
             return;
@@ -471,6 +488,8 @@ void raft_server::become_leader() {
         ptr<buffer> conf_buf = config_->serialize();
         ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), conf_buf, log_val_type::conf));
         log_store_->append(entry);
+        l_.info("save initial config to log store");
+        config_changing_ = true;
     }
 
     request_append_entries();
@@ -988,7 +1007,7 @@ ptr<resp_msg> raft_server::handle_rm_srv_req(req_msg& req) {
         return resp;
     }
 
-    if (config_changing_ || config_->get_log_idx() == 0 || config_->get_log_idx() > state_->get_commit_idx()) {
+    if (config_changing_) {
         // the previous config has not committed yet
         l_.info("previous config has not committed yet");
         return resp;
@@ -1007,7 +1026,6 @@ ptr<resp_msg> raft_server::handle_rm_srv_req(req_msg& req) {
     }
 
     ptr<peer> p = pit->second;
-    config_changing_ = true;
     ptr<req_msg> leave_req(cs_new<req_msg>(state_->get_term(), msg_type::leave_cluster_request, id_, srv_id, 0, log_store_->next_slot() - 1, quick_commit_idx_));
     p->send_req(leave_req, ex_resp_handler_);
     resp->accept(log_store_->next_slot());
@@ -1033,13 +1051,12 @@ ptr<resp_msg> raft_server::handle_add_srv_req(req_msg& req) {
         return resp;
     }
 
-    if (config_changing_ || config_->get_log_idx() == 0 || config_->get_log_idx() > state_->get_commit_idx()) {
+    if (config_changing_) {
         // the previous config has not committed yet
         l_.info("previous config has not committed yet");
         return resp;
     }
 
-    config_changing_ = true;
     conf_to_add_ = std::move(srv_conf);
     timer_task<peer&>::executor exec = (timer_task<peer&>::executor)std::bind(&raft_server::handle_hb_timeout, this, std::placeholders::_1);
     srv_to_join_ = cs_new<peer, srv_config&, context&, timer_task<peer&>::executor&>(*conf_to_add_, *ctx_, exec);
@@ -1081,7 +1098,7 @@ void raft_server::sync_log_to_new_srv(ulong start_idx) {
         config_ = new_conf;
         enable_hb_for_peer(*srv_to_join_);
         peers_.insert(std::make_pair(srv_to_join_->get_id(), srv_to_join_));
-        config_changing_ = false;
+        config_changing_ = true;
         request_append_entries();
         return;
     }
@@ -1134,8 +1151,11 @@ ptr<resp_msg> raft_server::handle_join_cluster_req(req_msg& req) {
 
 ptr<resp_msg> raft_server::handle_leave_cluster_req(req_msg& req) {
     ptr<resp_msg> resp(cs_new<resp_msg>(state_->get_term(), msg_type::leave_cluster_response, id_, req.get_src()));
-    steps_to_down_ = 2;
-    resp->accept(log_store_->next_slot());
+    if (!config_changing_) {
+        steps_to_down_ = 2;
+        resp->accept(log_store_->next_slot());
+    }
+
     return resp;
 }
 
@@ -1154,7 +1174,8 @@ void raft_server::rm_srv_from_cluster(int32 srv_id) {
         }
     }
 
-    config_changing_ = false;
+    l_.info(lstrfmt("removed a server from configuration and save the configuration to log store at %llu").fmt(new_conf->get_log_idx()));
+    config_changing_ = true;
     ptr<buffer> new_conf_buf(new_conf->serialize());
     ptr<log_entry> entry(cs_new<log_entry>(state_->get_term(), new_conf_buf, log_val_type::conf));
     log_store_->append(entry);
@@ -1264,8 +1285,16 @@ void raft_server::commit_in_bg() {
                     state_machine_.commit(current_commit_idx, log_entry->get_buf());
                 } else if (log_entry->get_val_type() == log_val_type::conf) {
                     recur_lock(lock_);
-                    ctx_->state_mgr_.save_config(*config_);
-                    if (catching_up_ && config_->get_server(id_) != nilptr) {
+                    log_entry->get_buf().pos(0);
+                    ptr<cluster_config> new_conf = cluster_config::deserialize(log_entry->get_buf());
+                    l_.info(sstrfmt("config at index %llu is committed").fmt(new_conf->get_log_idx()));
+                    ctx_->state_mgr_.save_config(*new_conf);
+                    config_changing_ = false;
+                    if (config_->get_log_idx() < new_conf->get_log_idx()) {
+                        reconfigure(new_conf);
+                    }
+
+                    if (catching_up_ && new_conf->get_server(id_) != nilptr) {
                         l_.info("this server is committed as one of cluster members");
                         catching_up_ = false;
                     }
@@ -1276,8 +1305,8 @@ void raft_server::commit_in_bg() {
             }
 
             ctx_->state_mgr_.save_state(*state_);
-        }catch(...){
-            l_.err("background committing thread encounter a bad error, exiting to protect the system");
+        }catch(std::exception& err){
+            l_.err(lstrfmt("background committing thread encounter err %s, exiting to protect the system").fmt(err.what()));
             ctx_->state_mgr_.system_exit(-1);
             ::exit(-1);
         }
