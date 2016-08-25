@@ -7,9 +7,9 @@ The core algorithm is implemented based on the TLA+ spec, whose safety and liven
 - [x] As memory goes big, GC may not be as efficient as memory tracking, introduced ptr<T> to this project to manage pointers
 - [ ] having a memory pool to improve the performance, this may not be done in this project, another project called jitl is on going to lead a new life style for c++ coders
 - [x] started working on file based log store, as raft's store accessing pattern is very special, file based would be the fastest one (not prove yet)
-- [ ] update fs\_log\_store to make the test pass and add more test cases for it
+- [x] update fs\_log\_store to make the test pass and add more test cases for it
 - [ ] asio based rpc client and rpc servers
-- [ ] go real (have this into a product)
+- [x] go real (have this into a product)
 
 ## Supported Features,
 - [x] Core Algorithm, safety, liveness are proven
