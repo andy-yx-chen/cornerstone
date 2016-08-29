@@ -694,7 +694,7 @@ void raft_server::reconfigure(const ptr<cluster_config>& new_config) {
     std::list<ptr<srv_config>>& new_srvs(new_config->get_servers());
     for (std::list<ptr<srv_config>>::const_iterator it = new_srvs.begin(); it != new_srvs.end(); ++it) {
         peer_itor pit = peers_.find((*it)->get_id());
-        if (pit == peers_.end()) {
+        if (pit == peers_.end() && id_ != (*it)->get_id()) {
             srvs_added.push_back(*it);
         }
     }
