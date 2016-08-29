@@ -15,10 +15,16 @@ namespace cornerstone {
             throw std::runtime_error("no memory");
         }
 
-        ref_counter_t* p_int = new (p) ref_counter_t(0);
-        p_int = new (reinterpret_cast<any_ptr>(p_int + 1)) ref_counter_t(0);
-        T* p_t = new (reinterpret_cast<any_ptr>(p_int + 1)) T(args...);
-        (void)p_t;
+        try {
+            ref_counter_t* p_int = new (p) ref_counter_t(0);
+            p_int = new (reinterpret_cast<any_ptr>(p_int + 1)) ref_counter_t(0);
+            T* p_t = new (reinterpret_cast<any_ptr>(p_int + 1)) T(args...);
+            (void)p_t;
+        }
+        catch (...) {
+            ::free(p);
+        }
+
         return ptr<T>(p);
     }
 
@@ -29,10 +35,15 @@ namespace cornerstone {
         if (p == nilptr) {
             throw std::runtime_error("no memory");
         }
+        try {
+            ref_counter_t* p_int = new (p) ref_counter_t(0);
+            p_int = new (reinterpret_cast<any_ptr>(p_int + 1)) ref_counter_t(0);
+            (void)p_int;
+        }
+        catch (...) {
+            ::free(p);
+        }
 
-        ref_counter_t* p_int = new (p) ref_counter_t(0);
-        p_int = new (reinterpret_cast<any_ptr>(p_int + 1)) ref_counter_t(0);
-        (void)p_int;
         return ptr<T>(p);
     }
 
@@ -270,6 +281,22 @@ namespace cornerstone {
         }
 
         inline ptr<T> operator &() {
+            if (*this) {
+                return ptr<T>(p_);
+            }
+
+            return ptr<T>();
+        }
+
+        inline const T& operator *() const{
+            if (*this) {
+                return *get();
+            }
+
+            throw std::runtime_error("try to reference to a nilptr");
+        }
+
+        inline ptr<T> operator &() const{
             if (*this) {
                 return ptr<T>(p_);
             }
