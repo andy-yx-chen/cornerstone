@@ -8,7 +8,7 @@ ptr<srv_config> srv_config::deserialize(buffer& buf) {
     return cs_new<srv_config>(id, endpoint);
 }
 
-ptr<buffer> srv_config::serialize() {
+ptr<buffer> srv_config::serialize() const{
     ptr<buffer> buf = buffer::alloc(sz_int + endpoint_.length() + 1);
     buf->put(id_);
     buf->put(endpoint_);

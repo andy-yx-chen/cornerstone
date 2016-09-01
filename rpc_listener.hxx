@@ -2,6 +2,10 @@
 #define _RPC_LISTENER_HXX_
 
 namespace cornerstone {
+    // for backward compatibility
+    class raft_server;
+    typedef raft_server msg_handler;
+
     class rpc_listener {
     __interface_body__(rpc_listener)
     public:

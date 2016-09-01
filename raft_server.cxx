@@ -1334,3 +1334,90 @@ void raft_server::commit_in_bg() {
         }
     }
 }
+
+
+ptr<async_result<bool>> raft_server::add_srv(const srv_config& srv) {
+    ptr<buffer> buf(srv.serialize());
+    ptr<log_entry> log(cs_new<log_entry>(0, buf, log_val_type::cluster_server));
+    ptr<req_msg> req(cs_new<req_msg>((ulong)0, msg_type::add_server_request, 0, 0, (ulong)0, (ulong)0, (ulong)0));
+    req->log_entries().push_back(log);
+    return send_msg_to_leader(req);
+}
+
+ptr<async_result<bool>> raft_server::append_entries(const std::vector<ptr<buffer>>& logs) {
+    if (logs.size() == 0) {
+        bool result(false);
+        return cs_new<async_result<bool>>(result);
+    }
+
+    ptr<req_msg> req(cs_new<req_msg>((ulong)0, msg_type::client_request, 0, 0, (ulong)0, (ulong)0, (ulong)0));
+    for (std::vector<ptr<buffer>>::const_iterator it = logs.begin(); it != logs.end(); ++it) {
+        ptr<log_entry> log(cs_new<log_entry>(0, *it, log_val_type::app_log));
+        req->log_entries().push_back(log);
+    }
+
+    return send_msg_to_leader(req);
+}
+
+ptr<async_result<bool>> raft_server::remove_srv(const int srv_id) {
+    ptr<buffer> buf(buffer::alloc(sz_int));
+    buf->put(srv_id);
+    buf->pos(0);
+    ptr<log_entry> log(cs_new<log_entry>(0, buf, log_val_type::cluster_server));
+    ptr<req_msg> req(cs_new<req_msg>((ulong)0, msg_type::remove_server_request, 0, 0, (ulong)0, (ulong)0, (ulong)0));
+    req->log_entries().push_back(log);
+    return send_msg_to_leader(req);
+}
+
+ptr<async_result<bool>> raft_server::send_msg_to_leader(ptr<req_msg>& req) {
+    typedef std::unordered_map<int32, ptr<rpc_client>>::const_iterator rpc_client_itor;
+    int32 leader_id = leader_;
+    ptr<cluster_config> cluster = config_;
+    bool result(false);
+    if (leader_id == -1) {
+        return cs_new<async_result<bool>>(result);
+    }
+
+    if (leader_id == id_) {
+        ptr<resp_msg> resp = process_req(*req);
+        result = resp->get_accepted();
+        return cs_new<async_result<bool>>(result);
+    }
+
+    ptr<rpc_client> rpc_cli;
+    {
+        auto_lock(rpc_clients_lock_);
+        rpc_client_itor itor = rpc_clients_.find(leader_id);
+        if (itor == rpc_clients_.end()) {
+            ptr<srv_config> srv_conf = config_->get_server(leader_id);
+            if (!srv_conf) {
+                return cs_new<async_result<bool>>(result);
+            }
+
+            rpc_cli = ctx_->rpc_cli_factory_.create_client(srv_conf->get_endpoint());
+            rpc_clients_.insert(std::make_pair(leader_id, rpc_cli));
+        }else{
+            rpc_cli = itor->second;
+        }
+    }
+
+    if (!rpc_cli) {
+        return cs_new<async_result<bool>>(result);
+    }
+
+    ptr<async_result<bool>> presult(cs_new<async_result<bool>>());
+    rpc_handler handler = [presult](ptr<resp_msg>& resp, ptr<rpc_exception>& err) -> void {
+        bool rpc_success(false);
+        ptr<std::exception> perr;
+        if (err) {
+            perr = err;
+        }
+        else {
+            rpc_success = resp && resp->get_accepted();
+        }
+
+        presult->set_result(rpc_success, perr);
+    };
+    rpc_cli->send(req, handler);
+    return presult;
+}

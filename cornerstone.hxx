@@ -51,7 +51,6 @@
 #include "srv_role.hxx"
 #include "log_store.hxx"
 #include "state_mgr.hxx"
-#include "msg_handler.hxx"
 #include "rpc_listener.hxx"
 #include "snapshot.hxx"
 #include "state_machine.hxx"

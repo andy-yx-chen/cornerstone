@@ -75,9 +75,6 @@
     <ClInclude Include="rpc_listener.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="msg_handler.hxx">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="state_machine.hxx">
       <Filter>Header Files</Filter>
     </ClInclude>

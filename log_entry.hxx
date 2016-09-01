@@ -3,7 +3,7 @@
 namespace cornerstone{
     class log_entry{
     public:
-        log_entry(ulong term, ptr<buffer>& buff, log_val_type value_type = log_val_type::app_log)
+        log_entry(ulong term, const ptr<buffer>& buff, log_val_type value_type = log_val_type::app_log)
             : term_(term), value_type_(value_type), buff_(buff) {
         }
 

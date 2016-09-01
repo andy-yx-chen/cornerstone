@@ -136,7 +136,6 @@
     <ClInclude Include="log_store.hxx" />
     <ClInclude Include="log_val_type.hxx" />
     <ClInclude Include="msg_base.hxx" />
-    <ClInclude Include="msg_handler.hxx" />
     <ClInclude Include="msg_type.hxx" />
     <ClInclude Include="peer.hxx" />
     <ClInclude Include="pp_util.hxx" />

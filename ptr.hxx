@@ -23,6 +23,7 @@ namespace cornerstone {
         }
         catch (...) {
             ::free(p);
+            p = nilptr;
         }
 
         return ptr<T>(p);
@@ -42,6 +43,7 @@ namespace cornerstone {
         }
         catch (...) {
             ::free(p);
+            p = nilptr;
         }
 
         return ptr<T>(p);

@@ -2,7 +2,7 @@
 #define _RAFT_SERVER_HXX_
 
 namespace cornerstone {
-    class raft_server : public msg_handler {
+    class raft_server {
     public:
         raft_server(context* ctx)
         : leader_(-1),
@@ -21,6 +21,7 @@ namespace cornerstone {
             election_exec_(std::bind(&raft_server::handle_election_timeout, this)),
             election_task_(),
             peers_(),
+            rpc_clients_(),
             role_(srv_role::follower),
             state_(ctx->state_mgr_.read_state()),
             log_store_(ctx->state_mgr_.load_log_store()),
@@ -31,6 +32,7 @@ namespace cornerstone {
             conf_to_add_(),
             lock_(),
             commit_lock_(),
+            rpc_clients_lock_(),
             commit_cv_(),
             stopping_lock_(),
             ready_to_stop_cv_(),
@@ -110,7 +112,13 @@ namespace cornerstone {
     __nocopy__(raft_server)
     
     public:
-        virtual ptr<resp_msg> process_req(req_msg& req) __override__;
+        ptr<resp_msg> process_req(req_msg& req);
+
+        ptr<async_result<bool>> add_srv(const srv_config& srv);
+
+        ptr<async_result<bool>> remove_srv(const int srv_id);
+
+        ptr<async_result<bool>> append_entries(const std::vector<ptr<buffer>>& logs);
 
     private:
         typedef std::unordered_map<int32, ptr<peer>>::const_iterator peer_itor;
@@ -157,6 +165,7 @@ namespace cornerstone {
         void on_retryable_req_err(ptr<peer>& p, ptr<req_msg>& req);
         ulong term_for_log(ulong log_idx);
         void commit_in_bg();
+        ptr<async_result<bool>> send_msg_to_leader(ptr<req_msg>& req);
     private:
         static const int default_snapshot_sync_block_size;
         int32 leader_;
@@ -175,6 +184,7 @@ namespace cornerstone {
         timer_task<void>::executor election_exec_;
         ptr<delayed_task> election_task_;
         std::unordered_map<int32, ptr<peer>> peers_;
+        std::unordered_map<int32, ptr<rpc_client>> rpc_clients_;
         srv_role role_;
         ptr<srv_state> state_;
         ptr<log_store> log_store_;
@@ -186,6 +196,7 @@ namespace cornerstone {
         ptr<srv_config> conf_to_add_;
         std::recursive_mutex lock_;
         std::mutex commit_lock_;
+        std::mutex rpc_clients_lock_;
         std::condition_variable commit_cv_;
         std::mutex stopping_lock_;
         std::condition_variable ready_to_stop_cv_;
@@ -193,5 +204,4 @@ namespace cornerstone {
         rpc_handler ex_resp_handler_;
     };
 }
-
 #endif //_RAFT_SERVER_HXX_

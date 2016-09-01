@@ -258,7 +258,7 @@ public:
         }
 
         // this is for test usage, if port is not found, faulted
-        throw std::runtime_error("bad port for msg_bus");
+        throw std::runtime_error(sstrfmt("bad port %s for msg_bus").fmt(port.c_str()));
     }
 
     msg_queue& get_queue(const std::string& port) {
@@ -415,7 +415,9 @@ void test_raft_server() {
             stop_test_cv.notify_all();
         }
     });
+
     client->send(msg, handler);
+
     {
         std::unique_lock<std::mutex> l(stop_test_lock);
         stop_test_cv.wait(l);
@@ -442,8 +444,19 @@ void run_raft_instance(int srv_id) {
         .with_max_append_size(100)
         .with_rpc_failure_backoff(50);
     context* ctx(new context(smgr, smachine, listener, *l, rpc_factory, asio_svc, params));
-    ptr<msg_handler> srv(cs_new<raft_server>(ctx));
-    listener.listen(srv);
+    ptr<raft_server> server(cs_new<raft_server>(ctx));
+    listener.listen(server);
+
+    // some example code for how to append log entries to raft_server
+    /*std::this_thread::sleep_for(std::chrono::seconds(1));
+    ptr<buffer> buf(buffer::alloc(100));
+    buf->put(sstrfmt("log from srv %d").fmt(srv_id));
+    buf->pos(0);
+    std::vector<ptr<buffer>> logs;
+    logs.push_back(buf);
+    ptr<async_result<bool>> presult = server->append_entries(logs);
+    */
+
     {
         std::unique_lock<std::mutex> ulock(lock);
         stop_cv.wait(ulock);
