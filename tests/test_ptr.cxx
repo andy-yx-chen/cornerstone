@@ -70,6 +70,35 @@ private:
     ptr<Circular1&> c1_;
 };
 
+class Base1 {
+public:
+    virtual int func1() = 0;
+};
+
+class Base2 {
+public:
+    virtual int func2() = 0;
+    virtual int func3() = 0;
+};
+
+class Impl : public Base1, public Base2 {
+public:
+    virtual ~Impl() {
+    }
+
+    virtual int func1() {
+        return 1;
+    }
+
+    virtual int func2() {
+        return 2;
+    }
+
+    virtual int func3() {
+        return 3;
+    }
+};
+
 void test_ptr() {
     {
         ptr<Circular1&> c1ref;
@@ -99,4 +128,14 @@ void test_ptr() {
     assert(__ptr_test_base_destroyed == 2);
     assert(__ptr_test_derived_destroyed == 1);
     assert(__ptr_test_circular_destroyed == 2);
+
+    // test multiple inheritance
+    cornerstone::ptr<Impl> impl(cornerstone::cs_new<Impl>());
+    assert(1 == impl->func1());
+    cornerstone::ptr<Base2> b2(impl);
+    assert(3 == b2->func3());
+    ptr<Base2&> b2ref = impl;
+    assert(true == b2ref);
+    b2 = &b2ref;
+    assert(3 == b2->func3());
 }

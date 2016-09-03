@@ -57,37 +57,35 @@ namespace cornerstone {
     template<typename T>
     class ptr {
     private:
-        ptr(any_ptr p)
-            : p_(p) {
+        ptr(any_ptr p, T* p_t = nilptr)
+            : p_(p), p_t_(p_t == nilptr ? reinterpret_cast<T*>(reinterpret_cast<ref_counter_t*>(p) + 2) : p_t) {
             _inc_ref();
         }
     public:
-        ptr() : p_(nilptr) {}
+        ptr() : p_(nilptr), p_t_(nilptr) {}
 
         template<typename T1>
         ptr(const ptr<T1>& other)
-            : p_(other.p_) {
-            T* p = other.get();
-            (void)p;
+            : p_(other.p_), p_t_(other.p_t_) {
             _inc_ref();
         }
 
         ptr(const ptr<T>& other)
-            : p_(other.p_) {
+            : p_(other.p_), p_t_(other.p_t_) {
             _inc_ref();
         }
 
         template<typename T1>
         ptr(ptr<T1>&& other)
-            : p_(other.p_) {
-            T* p = other.get();
-            (void)p;
+            : p_(other.p_), p_t_(other.p_t_) {
             other.p_ = nilptr;
+            other.p_t_ = nilptr;
         }
 
         ptr(ptr<T>&& other)
-            : p_(other.p_) {
+            : p_(other.p_), p_t_(other.p_t_) {
             other.p_ = nilptr;
+            other.p_t_ = nilptr;
         }
 
         ~ptr() {
@@ -96,10 +94,9 @@ namespace cornerstone {
 
         template<typename T1>
         ptr<T>& operator = (const ptr<T1>& other) {
-            T* p = other.get();
-            (void)p;
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
@@ -107,18 +104,20 @@ namespace cornerstone {
         ptr<T>& operator = (const ptr<T>& other) {
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
 
     public:
         inline T* get() const {
-            return p_ == nilptr ? nilptr : reinterpret_cast<T*>(reinterpret_cast<ref_counter_t*>(p_) + 2);
+            return p_t_;
         }
 
         inline void reset() {
             _dec_ref_and_free();
             p_ = nilptr;
+            p_t_ = nilptr;
         }
 
         inline T* operator -> () const {
@@ -165,7 +164,7 @@ namespace cornerstone {
         inline void _dec_ref_and_free() {
             if (p_ != nilptr && 0 == (-- *reinterpret_cast<ref_counter_t*>(p_))) {
                 ++ *(reinterpret_cast<ref_counter_t*>(p_) + 1);
-                get()->~T();
+                p_t_->~T();
 
                 // check if there are still references on this, if no, free the memory
                 if ((-- *(reinterpret_cast<ref_counter_t*>(p_) + 1)) == 0) {
@@ -177,6 +176,7 @@ namespace cornerstone {
         }
     private:
         any_ptr p_;
+        T* p_t_;
     public:
         template<typename T1>
         friend class ptr;
@@ -191,44 +191,40 @@ namespace cornerstone {
     template<typename T>
     class ptr<T&> {
     public:
-        ptr() : p_(nilptr) {}
+        ptr() : p_(nilptr), p_t_(nilptr) {}
 
         ptr(const ptr<T&>&& other)
-            : p_(other.p_) {
+            : p_(other.p_), p_t_(other.p_t_) {
             other.p_ = nilptr;
+            other.p_t_ = nilptr;
         }
 
         template<typename T1>
         ptr(const ptr<T1&>&& other)
-            : p_(other.p_) {
-            T* p = other.get();
-            (void)p;
+            : p_(other.p_), p_t_(other.p_t_) {
             other.p_ = nilptr;
+            other.p_t_ = nilptr;
         }
 
         ptr(const ptr<T>& src)
-            : p_(src.p_) {
+            : p_(src.p_), p_t_(src.p_t_) {
             _inc_ref();
         }
 
         template<typename T1>
         ptr(const ptr<T1>& src)
-            : p_(src.p_) {
-            T* p = src.get();
-            (void)p;
+            : p_(src.p_), p_t_(src.p_t_) {
             _inc_ref();
         }
 
         ptr(const ptr<T&>& other)
-            : p_(other.p_) {
+            : p_(other.p_), p_t_(other.p_t_) {
             _inc_ref();
         }
 
         template<typename T1>
         ptr(const ptr<T1&>& other)
-            : p_(other.p_) {
-            T* p = other.get();
-            (void)p;
+            : p_(other.p_), p_t_(other.p_t_) {
             _inc_ref();
         }
 
@@ -238,10 +234,9 @@ namespace cornerstone {
 
         template<typename T1>
         ptr<T&>& operator = (const ptr<T1&>& other) {
-            T* p = other.get();
-            (void)p;
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
@@ -249,16 +244,16 @@ namespace cornerstone {
         ptr<T&>& operator = (const ptr<T&>& other) {
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
 
         template<typename T1>
         ptr<T&>& operator = (const ptr<T1>& other) {
-            T* p = other.get();
-            (void)p;
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
@@ -266,6 +261,7 @@ namespace cornerstone {
         ptr<T&>& operator = (const ptr<T>& other) {
             _dec_ref_and_free();
             p_ = other.p_;
+            p_t_ = other.p_t_;
             _inc_ref();
             return *this;
         }
@@ -284,13 +280,13 @@ namespace cornerstone {
 
         inline ptr<T> operator &() {
             if (*this) {
-                return ptr<T>(p_);
+                return ptr<T>(p_, p_t_);
             }
 
             return ptr<T>();
         }
 
-        inline const T& operator *() const{
+        inline const T& operator *() const {
             if (*this) {
                 return *get();
             }
@@ -298,9 +294,9 @@ namespace cornerstone {
             throw std::runtime_error("try to reference to a nilptr");
         }
 
-        inline ptr<T> operator &() const{
+        inline ptr<T> operator &() const {
             if (*this) {
-                return ptr<T>(p_);
+                return ptr<T>(p_, p_t_);
             }
 
             return ptr<T>();
@@ -308,7 +304,7 @@ namespace cornerstone {
 
     private:
         inline T* get() const {
-            return p_ == nilptr ? nilptr : reinterpret_cast<T*>(reinterpret_cast<ref_counter_t*>(p_) + 2);
+            return p_t_;
         }
 
         inline void _inc_ref() {
@@ -327,6 +323,7 @@ namespace cornerstone {
         }
     private:
         any_ptr p_;
+        T* p_t_;
     };
 }
 #endif //_CS_PTR_HXX_
