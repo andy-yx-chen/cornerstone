@@ -200,7 +200,7 @@ namespace cornerstone {
         }
 
         template<typename T1>
-        ptr(const ptr<T1&>&& other)
+        ptr(ptr<T1&>&& other)
             : p_(other.p_), p_t_(other.p_t_) {
             other.p_ = nilptr;
             other.p_t_ = nilptr;
