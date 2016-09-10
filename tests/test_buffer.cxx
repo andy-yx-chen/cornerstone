@@ -52,8 +52,17 @@ static void do_test(ptr<buffer>& buf) {
     ptr<buffer> buf2(buffer::copy(*buf1));
     buf->put(*buf1);
     buf->pos(0);
+    ptr<buffer> buf3(buffer::alloc(sz_int * 100));
+    buf->get(buf3);
+    buf->pos(0);
     for (int i = 0; i < 100; ++i) {
         int32 val = buf->get_int();
+        assert(val == vals[i]);
+    }
+
+    buf3->pos(0);
+    for (int i = 0; i < 100; ++i) {
+        int32 val = buf3->get_int();
         assert(val == vals[i]);
     }
 

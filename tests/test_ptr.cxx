@@ -8,6 +8,7 @@ int __ptr_test_derived_calls(0);
 int __ptr_test_base_destroyed(0);
 int __ptr_test_derived_destroyed(0);
 int __ptr_test_circular_destroyed(0);
+int __ptr_test_safe_destroyed(0);
 
 class Base {
 public:
@@ -40,6 +41,23 @@ public:
     virtual void func() {
         __ptr_test_derived_calls += 1;
     }
+};
+
+class PtrSafe {
+private:
+    PtrSafe() {}
+
+public:
+    ~PtrSafe() {
+        __ptr_test_safe_destroyed += 1;
+    }
+
+    ptr<PtrSafe> get_this() {
+        return cs_safe(this);
+    }
+
+public:
+    friend ptr<PtrSafe> cornerstone::cs_new<PtrSafe>();
 };
 
 class Circular2;
@@ -118,6 +136,10 @@ void test_ptr() {
             c1ref = c1;
             ptr<Circular1> pc1 = &c1ref;
             assert(pc1 == true);
+
+            ptr<PtrSafe> ps(cs_new<PtrSafe>());
+            ps = ps->get_this();
+            ps = ps->get_this();
         }
 
         assert(c1ref == false);
@@ -128,6 +150,7 @@ void test_ptr() {
     assert(__ptr_test_base_destroyed == 2);
     assert(__ptr_test_derived_destroyed == 1);
     assert(__ptr_test_circular_destroyed == 2);
+    assert(__ptr_test_safe_destroyed == 1);
 
     // test multiple inheritance
     cornerstone::ptr<Impl> impl(cornerstone::cs_new<Impl>());

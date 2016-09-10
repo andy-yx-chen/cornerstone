@@ -3,15 +3,25 @@
 #if defined(__EDG_VERSION__)
 #undef __EDG_VERSION__
 #endif
+
+#define  _CRT_SECURE_NO_WARNINGS
+
 #include "cornerstone.hxx"
 #include <fstream>
 #include <queue>
 #include <asio.hpp>
 #include <ctime>
 
+// request header, ulong term (8), msg_type type (1), int32 src (4), int32 dst (4), ulong last_log_term (8), ulong last_log_idx (8), ulong commit_idx (8) + one int32 (4) for log data size 
+#define RPC_REQ_HEADER_SIZE 3 * 4 + 8 * 4 + 1
+ 
+// response header ulong term (8), msg_type type (1), int32 src (4), int32 dst (4), ulong next_idx (8), bool accepted (1)
+#define RPC_RESP_HEADER_SIZE 4 * 2 + 8 * 2 + 2
+
 namespace cornerstone {
 
     namespace impls {
+        // logger implementation
         class fs_based_logger : public logger {
         public:
             fs_based_logger(asio_service_impl& impl, const std::string& log_file, cornerstone::asio_service::log_level level)
@@ -57,6 +67,7 @@ namespace cornerstone {
         };
     }
 
+    // asio service implementation
     class asio_service_impl {
     public:
         asio_service_impl();
@@ -74,11 +85,200 @@ namespace cornerstone {
         std::atomic_int continue_;
         std::mutex logger_list_lock_;
         std::list<impls::fs_based_logger*> loggers_;
-	bool stopping_;
-	std::mutex stopping_lock_;
-	std::condition_variable stopping_cv_;
+	    bool stopping_;
+	    std::mutex stopping_lock_;
+	    std::condition_variable stopping_cv_;
         friend asio_service;
-	friend impls::fs_based_logger;
+	    friend impls::fs_based_logger;
+    };
+
+    // rpc session 
+    class rpc_session;
+    typedef std::function<void(const ptr<rpc_session>&)> session_closed_callback;
+
+    class rpc_session {
+    private:
+        rpc_session(asio::io_service& io, ptr<msg_handler>& handler, logger& logger, session_closed_callback& callback)
+            : handler_(handler), socket_(io), log_data_(), header_(buffer::alloc(RPC_REQ_HEADER_SIZE)), l_(logger), callback_(callback) {}
+
+        __nocopy__(rpc_session)
+
+    public:
+        ~rpc_session() {
+            if (socket_.is_open()) {
+                socket_.close();
+            }
+        }
+
+    public:
+        void start() {
+            ptr<rpc_session> self = cs_safe(this); // this is safe since we only expose ctor to cs_new
+            asio::async_read(socket_, asio::buffer(header_->data(), RPC_REQ_HEADER_SIZE), [this, self](const asio::error_code& err, size_t) -> void {
+                if (!err) {
+                    header_->pos(RPC_REQ_HEADER_SIZE - 4);
+                    int32 data_size = header_->get_int();
+                    if (data_size < 0 || data_size > 0x1000000) {
+                        l_.warn(lstrfmt("bad log data size in the header %d, stop this session to protect further corruption").fmt(data_size));
+                        this->stop();
+                        return;
+                    }
+
+                    if (data_size == 0) {
+                        this->read_complete();
+                    }
+
+                    this->log_data_ = buffer::alloc((size_t)data_size);
+                    asio::async_read(this->socket_, asio::buffer(this->log_data_->data(), (size_t)data_size), std::bind(&rpc_session::read_log_data, self, std::placeholders::_1, std::placeholders::_2));
+                }
+                else {
+                    l_.err(lstrfmt("failed to read rpc header from socket due to error %d").fmt(err.value()));
+                    this->stop();
+                }
+            });
+        }
+
+        void stop() {
+            socket_.close();
+            if (callback_) {
+                ptr<rpc_session> self(cs_safe(this));
+                callback_(self);
+            }
+        }
+
+        asio::ip::tcp::socket& socket() {
+            return socket_;
+        }
+
+    private:
+        void read_log_data(const asio::error_code& err, size_t bytes_read) {
+            ptr<rpc_session> self = cs_safe(this);
+            if (!err) {
+                this->read_complete();
+            }
+            else {
+                l_.err(lstrfmt("failed to read rpc log data from socket due to error %d").fmt(err.value()));
+                this->stop();
+            }
+        }
+
+        void read_complete() {
+            ptr<rpc_session> self = cs_safe(this);
+            try {
+                header_->pos(0);
+                msg_type t = (msg_type)header_->get_byte();
+                int32 src = header_->get_int();
+                int32 dst = header_->get_int();
+                ulong term = header_->get_ulong();
+                ulong last_term = header_->get_ulong();
+                ulong last_idx = header_->get_ulong();
+                ulong commit_idx = header_->get_ulong();
+                ptr<req_msg> req(cs_new<req_msg>(term, t, src, dst, last_term, last_idx, commit_idx));
+                if (header_->get_int() > 0 && log_data_) {
+                    log_data_->pos(0);
+                    while (log_data_->size() > log_data_->pos()) {
+                        ulong term = log_data_->get_ulong();
+                        log_val_type val_type = (log_val_type)log_data_->get_byte();
+                        int32 val_size = log_data_->get_int();
+                        ptr<buffer> buf(buffer::alloc((size_t)val_size));
+                        log_data_->get(buf);
+                        ptr<log_entry> entry(cs_new<log_entry>(term, buf, val_type));
+                        req->log_entries().push_back(entry);
+                    }
+                }
+
+                ptr<resp_msg> resp = handler_->process_req(*req);
+                if (resp) {
+                    l_.err("no response is returned from raft message handler, potential system bug");
+                    this->stop();
+                }
+                else {
+                    ptr<buffer> resp_buf(buffer::alloc(RPC_RESP_HEADER_SIZE));
+                    resp_buf->put((byte)resp->get_type());
+                    resp_buf->put(resp->get_src());
+                    resp_buf->put(resp->get_dst());
+                    resp_buf->put(resp->get_term());
+                    resp_buf->put(resp->get_next_idx());
+                    resp_buf->put((byte)resp->get_accepted());
+                    resp_buf->pos(0);
+                    asio::async_write(socket_, asio::buffer(resp_buf->data(), RPC_RESP_HEADER_SIZE), [this, self](asio::error_code err_code, size_t) -> void {
+                        if (!err_code) {
+                            this->start();
+                        }
+                        else {
+                            this->l_.err(lstrfmt("failed to send response to peer due to error %d").fmt(err_code.value()));
+                            this->stop();
+                        }
+                    });
+                }
+            }
+            catch (std::exception& ex) {
+                l_.err(lstrfmt("failed to process request message due to error: %s").fmt(ex.what()));
+                this->stop();
+            }
+        }
+
+    public:
+        friend ptr<rpc_session> cs_new<rpc_session, asio::io_service&, ptr<msg_handler>&, logger&, session_closed_callback& >(asio::io_service&, ptr<msg_handler>&, logger&, session_closed_callback&);
+    private:
+        ptr<msg_handler> handler_;
+        asio::ip::tcp::socket socket_;
+        ptr<buffer> log_data_;
+        ptr<buffer> header_;
+        logger& l_;
+        session_closed_callback callback_;
+    };
+    // rpc listener implementation
+    class asio_rpc_listener : public rpc_listener {
+    private:
+        asio_rpc_listener(asio::io_service& io, ushort port, logger& l) 
+            : io_svc_(io), handler_(), acceptor_(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)), active_sessions_(), session_lock_(), l_(l) {}
+        __nocopy__(asio_rpc_listener)
+
+    public:
+        virtual void stop() override {
+            acceptor_.close();
+        }
+
+        virtual void listen(ptr<msg_handler>& handler) override {
+            handler_ = handler;
+            start();
+        }
+
+    private:
+        void start() {
+            ptr<asio_rpc_listener> self = cs_safe(this);
+            session_closed_callback cb = std::bind(&asio_rpc_listener::remove_session, self, std::placeholders::_1);
+            ptr<rpc_session> session(cs_new<rpc_session, asio::io_service&, ptr<msg_handler>&, logger&, session_closed_callback&>(io_svc_, handler_, l_, cb));
+            acceptor_.async_accept(session->socket(), [self, this, session](const asio::error_code& err) -> void {
+                if (!err) {
+                    this->l_.debug("receive a incoming rpc connection");
+                    session->start();
+                }
+                else {
+                    this->l_.debug(sstrfmt("fails to accept a rpc connection due to error %d").fmt(err.value()));
+                }
+
+                this->start();
+            });
+        }
+        void remove_session(const ptr<rpc_session>& session) {
+            auto_lock(session_lock_);
+            for (std::vector<ptr<rpc_session>>::iterator it = active_sessions_.begin(); it != active_sessions_.end(); ++it) {
+                if (*it == session) {
+                    active_sessions_.erase(it);
+                    break;
+                }
+            }
+        }
+    public:
+        friend ptr<asio_rpc_listener> cs_new<asio_rpc_listener, asio::io_service&, ushort, logger&>(asio::io_service&, ushort, logger&);
+    private:
+        asio::io_service& io_svc_;
+        ptr<msg_handler> handler_;
+        asio::ip::tcp::acceptor acceptor_;
+        std::vector<ptr<rpc_session>> active_sessions_;
+        std::mutex session_lock_;
+        logger& l_;
     };
 }
 
@@ -165,7 +365,7 @@ void asio_service_impl::stop() {
     }
 }
 
-void fs_based_logger::flush() {
+void cornerstone::impls::fs_based_logger::flush() {
     std::queue<std::string> backup;
     {
         std::lock_guard<std::mutex> guard(lock_);
@@ -181,14 +381,14 @@ void fs_based_logger::flush() {
     }
 }
 
-fs_based_logger::~fs_based_logger() {
+cornerstone::impls::fs_based_logger::~fs_based_logger() {
     flush();
     fs_.flush();
     fs_.close();
     svc_impl_.remove_logger(this);
 }
 
-void fs_based_logger::write_log(const std::string& level, const std::string& log_line) {
+void cornerstone::impls::fs_based_logger::write_log(const std::string& level, const std::string& log_line) {
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
     int ms = (int)(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000);
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
@@ -249,6 +449,6 @@ logger* asio_service::create_logger(log_level level, const std::string& log_file
     return l;
 }
 
-ptr<rpc_listener> asio_service::create_rpc_listener(int listening_port) {
-    return ptr<rpc_listener>();
+ptr<rpc_listener> asio_service::create_rpc_listener(ushort listening_port, logger& l) {
+    return ptr<rpc_listener>(cs_new<asio_rpc_listener, asio::io_service&, ushort, logger&>(impl_->io_svc_, listening_port, l));
 }

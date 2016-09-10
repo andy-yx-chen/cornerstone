@@ -16,6 +16,7 @@ namespace cornerstone {
         int32 get_int();
         ulong get_ulong();
         byte get_byte();
+        void get(ptr<buffer>& dst);
         const char* get_str();
         byte* data() const;
 

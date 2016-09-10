@@ -28,7 +28,7 @@ namespace cornerstone {
 
         logger* create_logger(log_level level, const std::string& log_file);
 
-        ptr<rpc_listener> create_rpc_listener(int listening_port);
+        ptr<rpc_listener> create_rpc_listener(ushort listening_port, logger& l);
 
         void stop();
 

@@ -176,6 +176,12 @@ void buffer::put(const std::string& str) {
     __mv_fw_block(this, str.length() + 1);
 }
 
+void buffer::get(ptr<buffer>& dst) {
+    size_t sz = dst->size() - dst->pos();
+    ::memcpy(dst->data(), data(), sz);
+    __mv_fw_block(this, sz);
+}
+
 void buffer::put(const buffer& buf) {
     size_t sz = size();
     size_t p = pos();
