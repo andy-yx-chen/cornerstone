@@ -4,12 +4,34 @@ using namespace cornerstone;
 
 const int raft_server::default_snapshot_sync_block_size = 4 * 1024;
 
+// for tracing and debugging
+static char* __msg_type_str[] = {
+    "unknown",
+    "request_vote_request",
+    "request_vote_response",
+    "append_entries_request",
+    "append_entries_response",
+    "client_request",
+    "add_server_request",
+    "add_server_response",
+    "remove_server_request",
+    "remove_server_response",
+    "sync_log_request",
+    "sync_log_response",
+    "join_cluster_request",
+    "join_cluster_response",
+    "leave_cluster_request",
+    "leave_cluster_response",
+    "install_snapshot_request",
+    "install_snapshot_response"
+};
+
 ptr<resp_msg> raft_server::process_req(req_msg& req) {
     recur_lock(lock_);
     l_.debug(
-        lstrfmt("Receive a %d message from %d with LastLogIndex=%llu, LastLogTerm=%llu, EntriesLength=%d, CommitIndex=%llu and Term=%llu")
+        lstrfmt("Receive a %s message from %d with LastLogIndex=%llu, LastLogTerm=%llu, EntriesLength=%d, CommitIndex=%llu and Term=%llu")
         .fmt(
-            req.get_type(),
+            __msg_type_str[req.get_type()],
             req.get_src(),
             req.get_last_log_idx(),
             req.get_last_log_term(),
@@ -45,9 +67,9 @@ ptr<resp_msg> raft_server::process_req(req_msg& req) {
 
     if (!resp) {
         l_.debug(
-            lstrfmt("Response back a %d message to %d with Accepted=%d, Term=%llu, NextIndex=%llu")
+            lstrfmt("Response back a %s message to %d with Accepted=%d, Term=%llu, NextIndex=%llu")
             .fmt(
-                resp->get_type(),
+                __msg_type_str[resp->get_type()],
                 resp->get_dst(),
                 resp->get_accepted() ? 1 : 0,
                 resp->get_term(),
@@ -239,7 +261,7 @@ void raft_server::request_vote() {
 
     for (peer_itor it = peers_.begin(); it != peers_.end(); ++it) {
         ptr<req_msg> req(cs_new<req_msg>(state_->get_term(), msg_type::request_vote_request, id_, it->second->get_id(), term_for_log(log_store_->next_slot() - 1), log_store_->next_slot() - 1, state_->get_commit_idx()));
-        l_.debug(sstrfmt("send %d to server %d with term %llu").fmt(req->get_type(), it->second->get_id(), state_->get_term()));
+        l_.debug(sstrfmt("send %s to server %d with term %llu").fmt(__msg_type_str[req->get_type()], it->second->get_id(), state_->get_term()));
         it->second->send_req(req, resp_handler_);
     }
 }
@@ -274,8 +296,8 @@ void raft_server::handle_peer_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err)
     }
 
     l_.debug(
-        lstrfmt("Receive a %d message from peer %d with Result=%d, Term=%llu, NextIndex=%llu")
-        .fmt(resp->get_type(), resp->get_src(), resp->get_accepted() ? 1 : 0, resp->get_term(), resp->get_next_idx()));
+        lstrfmt("Receive a %s message from peer %d with Result=%d, Term=%llu, NextIndex=%llu")
+        .fmt(__msg_type_str[resp->get_type()], resp->get_src(), resp->get_accepted() ? 1 : 0, resp->get_term(), resp->get_next_idx()));
 
     // if term is updated, no more action is required
     if (update_term(resp->get_term())) {
@@ -295,7 +317,7 @@ void raft_server::handle_peer_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err)
         handle_install_snapshot_resp(*resp);
         break;
     default:
-        l_.err(sstrfmt("Received an unexpected message %d for response, system exits.").fmt(resp->get_type()));
+        l_.err(sstrfmt("Received an unexpected message %s for response, system exits.").fmt(__msg_type_str[resp->get_type()]));
         ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
@@ -766,7 +788,7 @@ ptr<resp_msg> raft_server::handle_extended_msg(req_msg& req) {
     case msg_type::install_snapshot_request:
         return handle_install_snapshot_req(req);
     default:
-        l_.err(sstrfmt("receive an unknown request %d, for safety, step down.").fmt(req.get_type()));
+        l_.err(sstrfmt("receive an unknown request %s, for safety, step down.").fmt(__msg_type_str[req.get_type()]));
         ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
@@ -872,9 +894,9 @@ void raft_server::handle_ext_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err) 
     }
 
     l_.debug(
-        lstrfmt("Receive an extended %d message from peer %d with Result=%d, Term=%llu, NextIndex=%llu")
+        lstrfmt("Receive an extended %s message from peer %d with Result=%d, Term=%llu, NextIndex=%llu")
         .fmt(
-            resp->get_type(),
+            __msg_type_str[resp->get_type()],
             resp->get_src(),
             resp->get_accepted() ? 1 : 0,
             resp->get_term(),
@@ -951,7 +973,7 @@ void raft_server::handle_ext_resp(ptr<resp_msg>& resp, ptr<rpc_exception>& err) 
         }
         break;
     default:
-        l_.err(lstrfmt("received an unexpected response message type %d, for safety, stepping down").fmt(resp->get_type()));
+        l_.err(lstrfmt("received an unexpected response message type %s, for safety, stepping down").fmt(__msg_type_str[resp->get_type()]));
         ctx_->state_mgr_.system_exit(-1);
         ::exit(-1);
         break;
@@ -1023,7 +1045,7 @@ void raft_server::handle_ext_resp_err(rpc_exception& err) {
 }
 
 void raft_server::on_retryable_req_err(ptr<peer>& p, ptr<req_msg>& req) {
-    l_.debug(sstrfmt("retry the request %d for %d").fmt(req->get_type(), p->get_id()));
+    l_.debug(sstrfmt("retry the request %s for %d").fmt(__msg_type_str[req->get_type()], p->get_id()));
     p->send_req(req, ex_resp_handler_);
 }
 
