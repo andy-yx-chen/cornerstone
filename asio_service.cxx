@@ -11,6 +11,7 @@
 #include <queue>
 #include <asio.hpp>
 #include <ctime>
+#include <regex>
 
 // request header, ulong term (8), msg_type type (1), int32 src (4), int32 dst (4), ulong last_log_term (8), ulong last_log_idx (8), ulong commit_idx (8) + one int32 (4) for log data size 
 #define RPC_REQ_HEADER_SIZE 3 * 4 + 8 * 4 + 1
@@ -280,6 +281,120 @@ namespace cornerstone {
         std::mutex session_lock_;
         logger& l_;
     };
+
+    class asio_rpc_client : public rpc_client {
+    private:
+        asio_rpc_client(asio::io_service& io_svc, std::string& host, std::string& port)
+            : io_svc_(io_svc), socket_(io_svc), host_(host), port_(port){}
+    public:
+        virtual void send(ptr<req_msg>& req, rpc_handler& when_done) __override__ {
+            ptr<asio_rpc_client> self(cs_safe(this));
+            if (!socket_.is_open()) {
+                asio::ip::tcp::resolver r(io_svc_);
+                r.async_resolve(host_, port_, [self, this, &req, &when_done](std::error_code err, asio::ip::tcp::resolver::iterator itor) -> void {
+                    if (!err) {
+                        asio::async_connect(socket_, itor, std::bind(&asio_rpc_client::connected, self, req, when_done, std::placeholders::_1, std::placeholders::_2));
+                    }
+                    else {
+                        ptr<resp_msg> rsp;
+                        ptr<rpc_exception> except(cs_new<rpc_exception>(lstrfmt("failed to resolve host %s").fmt(host_.c_str()), req));
+                        when_done(rsp, except);
+                    }
+                });
+            }else{
+                // serialize req, send and read response
+                std::vector<ptr<buffer>> log_entry_bufs;
+                int32 log_data_size(0);
+                for (std::vector<ptr<log_entry>>::const_iterator it = req->log_entries().begin();
+                    it != req->log_entries().end(); 
+                    ++it) {
+                    ptr<buffer> entry_buf(buffer::alloc(8 + 1 + 4 + (*it)->get_buf().size()));
+                    entry_buf->put((*it)->get_term());
+                    entry_buf->put((byte)((*it)->get_val_type()));
+                    entry_buf->put((int32)(*it)->get_buf().size());
+                    (*it)->get_buf().pos(0);
+                    entry_buf->put((*it)->get_buf());
+                    entry_buf->pos(0);
+                    log_entry_bufs.push_back(entry_buf);
+                    log_data_size += (int32)entry_buf->size();
+                }
+
+                ptr<buffer> req_buf(buffer::alloc(RPC_REQ_HEADER_SIZE + log_data_size));
+                req_buf->put((byte)req->get_type());
+                req_buf->put(req->get_src());
+                req_buf->put(req->get_dst());
+                req_buf->put(req->get_term());
+                req_buf->put(req->get_last_log_term());
+                req_buf->put(req->get_last_log_idx());
+                req_buf->put(req->get_commit_idx());
+                req_buf->put(log_data_size);
+                for (std::vector<ptr<buffer>>::const_iterator it = log_entry_bufs.begin();
+                    it != log_entry_bufs.end();
+                    ++it) {
+                    req_buf->put(*(*it));
+                }
+
+                req_buf->pos(0);
+
+                asio::async_write(socket_, asio::buffer(req_buf->data(), req_buf->size()), std::bind(&asio_rpc_client::sent, self, req, when_done, std::placeholders::_1, std::placeholders::_2));
+            }
+        }
+    private:
+        void connected(ptr<req_msg>& req, rpc_handler& when_done, std::error_code err, asio::ip::tcp::resolver::iterator itor) {
+            if (!err) {
+                this->send(req, when_done);
+            }
+            else {
+                ptr<resp_msg> rsp;
+                ptr<rpc_exception> except(cs_new<rpc_exception>("failed to connect to remote socket", req));
+                when_done(rsp, except);
+            }
+        }
+
+        void sent(ptr<req_msg>& req, rpc_handler& when_done, std::error_code err, size_t bytes_transferred) {
+            ptr<asio_rpc_client> self(cs_safe(this));
+            if (!err) {
+                // read a response
+                ptr<buffer> resp_buf(buffer::alloc(RPC_RESP_HEADER_SIZE));
+                asio::async_read(socket_, asio::buffer(resp_buf->data(), resp_buf->size()), std::bind(&asio_rpc_client::response_read, self, req, when_done, resp_buf, std::placeholders::_1, std::placeholders::_2));
+            }
+            else {
+                ptr<resp_msg> rsp;
+                ptr<rpc_exception> except(cs_new<rpc_exception>("failed to send request to remote socket", req));
+                socket_.close();
+                when_done(rsp, except);
+            }
+        }
+
+        void response_read(ptr<req_msg>& req, rpc_handler& when_done, ptr<buffer>& resp_buf, std::error_code err, size_t bytes_transferred) {
+            if (!err) {
+                byte msg_type_val = resp_buf->get_byte();
+                int32 src = resp_buf->get_int();
+                int32 dst = resp_buf->get_int();
+                ulong term = resp_buf->get_ulong();
+                ulong nxt_idx = resp_buf->get_ulong();
+                byte accepted_val = resp_buf->get_byte();
+                ptr<resp_msg> rsp(cs_new<resp_msg>(term, (msg_type)msg_type_val, src, dst, nxt_idx, accepted_val == 1));
+                ptr<rpc_exception> except;
+                when_done(rsp, except);
+            }
+            else {
+                ptr<resp_msg> rsp;
+                ptr<rpc_exception> except(cs_new<rpc_exception>("failed to read response to remote socket", req));
+                socket_.close();
+                when_done(rsp, except);
+            }
+        }
+
+    private:
+        asio::io_service& io_svc_;
+        asio::ip::tcp::socket socket_;
+        std::string host_;
+        std::string port_;
+
+    public:
+        friend ptr<asio_rpc_client> cs_new<asio_rpc_client, asio::io_service&, std::string&, std::string&>(asio::io_service&, std::string&, std::string&);
+    };
 }
 
 using namespace cornerstone;
@@ -436,7 +551,17 @@ void asio_service::stop() {
 }
 
 ptr<rpc_client> asio_service::create_client(const std::string& endpoint) {
-    return ptr<rpc_client>();
+    // the endpoint is expecting to be protocol://host:port, and we only support tcp for this factory
+    // which is endpoint must be tcp://hostname:port
+    static std::regex reg("^tcp://(([a-zA-Z0-9\\-]+\\.)+([a-zA-Z0-9]+)):([0-9]+)$");
+    std::smatch mresults;
+    if (!std::regex_match(endpoint, mresults, reg) || mresults.size() != 5) {
+        return ptr<rpc_client>();
+    }
+
+    std::string hostname = mresults[1].str();
+    std::string port = mresults[4].str();
+    return cs_new<asio_rpc_client, asio::io_service&, std::string&, std::string&>(impl_->io_svc_, hostname, port);
 }
 
 logger* asio_service::create_logger(log_level level, const std::string& log_file) {
@@ -450,5 +575,5 @@ logger* asio_service::create_logger(log_level level, const std::string& log_file
 }
 
 ptr<rpc_listener> asio_service::create_rpc_listener(ushort listening_port, logger& l) {
-    return ptr<rpc_listener>(cs_new<asio_rpc_listener, asio::io_service&, ushort, logger&>(impl_->io_svc_, listening_port, l));
+    return cs_new<asio_rpc_listener, asio::io_service&, ushort, logger&>(impl_->io_svc_, listening_port, l);
 }

@@ -5,7 +5,7 @@ using namespace cornerstone;
 const int raft_server::default_snapshot_sync_block_size = 4 * 1024;
 
 // for tracing and debugging
-static char* __msg_type_str[] = {
+static const char* __msg_type_str[] = {
     "unknown",
     "request_vote_request",
     "request_vote_response",
