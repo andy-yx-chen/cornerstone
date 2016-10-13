@@ -1,10 +1,14 @@
 # cornerstone
 Another Raft C++ Implementation
 
+## Project moved
+
+**Please be noted that this project is no longer maintained, I will not fix any bugs, neither have new features in this project anymore, however, I have found a team to take over this for me, the code has been re-organized and published at [cornerstone](https://github.com/datatechnology/cornerstone), the team will start from there and make it under Apache 2, nothing is changed, but better support and more features on it**
+
 The core algorithm is implemented based on the TLA+ spec, whose safety and liveness are proven, this implementation is copied from [jraft](https://github.com/andy-yx-chen/jraft) but replace java code with C++
 
 ## Updates and Plan
-- [x] As memory goes big, GC may not be as efficient as memory tracking, introduced ptr<T> to this project to manage pointers
+- [x] As memory goes big, GC may not be as efficient as memory tracking, introduced ptr\<T\> to this project to manage pointers
 - [ ] having a memory pool to improve the performance, this may not be done in this project, another project called jitl is on going to lead a new life style for c++ coders
 - [x] started working on file based log store, as raft's store accessing pattern is very special, file based would be the fastest one (not prove yet)
 - [x] update fs\_log\_store to make the test pass and add more test cases for it
